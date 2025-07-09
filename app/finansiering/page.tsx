@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle, Shield, Copy } from "lucide-react"
 
 export default function FinansieringPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [verificationCode, setVerificationCode] = useState("")
   const [formData, setFormData] = useState({
@@ -20,51 +17,62 @@ export default function FinansieringPage() {
     bidAmount: "",
   })
 
+  // Replace with your values
+  const clientId = "sandbox-smoggy-shirt-166"
+  const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
+  const tokenEndpoint = "https://tefi.sandbox.signicat.com/auth/open/connect/token"
+  const userinfoEndpoint = "https://tefi.sandbox.signicat.com/auth/open/connect/userinfo"
+  const clientSecret = "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd"
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const code = searchParams.get("code")
-
-    if (code && !isLoggedIn) {
-      const fetchToken = async () => {
-        const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri: "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering",
-            client_id: "sandbox-smoggy-shirt-166",
-            client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-          }),
-        })
-
-        const tokenData = await tokenResponse.json()
-
-        if (tokenData.access_token) {
-          const userInfoRes = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
-            headers: {
-              Authorization: `Bearer ${tokenData.access_token}`,
-            },
-          })
-
-          const user = await userInfoRes.json()
-
-          setFormData({
-            fullName: `${user.given_name} ${user.family_name}` || "",
-            socialNumber: user.sub || "",
-            phone: user.phone_number || "",
-            bidAmount: "",
-          })
-
-          setIsLoggedIn(true)
-        }
-      }
-
-      fetchToken()
-    }
+    const code = new URLSearchParams(window.location.search).get("code")
+    if (code) exchangeCodeForToken(code)
   }, [])
+
+  const exchangeCodeForToken = async (code: string) => {
+    const params = new URLSearchParams()
+    params.append("grant_type", "authorization_code")
+    params.append("code", code)
+    params.append("redirect_uri", redirectUri)
+    params.append("client_id", clientId)
+    params.append("client_secret", clientSecret)
+
+    try {
+      const res = await fetch(tokenEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      })
+
+      const data = await res.json()
+      const token = data.access_token
+
+      if (token) fetchUserInfo(token)
+    } catch (err) {
+      console.error("Token exchange failed", err)
+    }
+  }
+
+  const fetchUserInfo = async (token: string) => {
+    try {
+      const res = await fetch(userinfoEndpoint, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const user = await res.json()
+      setFormData({
+        fullName: user.name || "",
+        socialNumber: user.nin || "",
+        phone: user.phone || "",
+        bidAmount: "",
+      })
+    } catch (err) {
+      console.error("Failed to fetch user info", err)
+    }
+  }
 
   const generateCode = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -73,20 +81,6 @@ export default function FinansieringPage() {
       result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
     return result
-  }
-
-  const handleBankIdLogin = () => {
-    const clientId = "sandbox-smoggy-shirt-166"
-    const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
-    const scope = "openid profile"
-    const responseType = "code"
-    const acr = "urn:signicat:oidc:method:nbid"
-
-    const authUrl = `https://tefi.sandbox.signicat.com/auth/open?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=${scope}&acr_values=${acr}`
-
-    window.location.href = authUrl
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -136,7 +130,6 @@ export default function FinansieringPage() {
                   </div>
                 </div>
               </div>
-
               <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                 <p className="text-sm text-gray-700">
                   <strong>Send denne koden til megler for å bekrefte budet ditt.</strong>
@@ -160,78 +153,38 @@ export default function FinansieringPage() {
             </div>
             <CardTitle className="text-2xl text-blue-900">Bekreft finansiering</CardTitle>
             <CardDescription className="text-gray-600">
-              Logg inn med BankID for å bekrefte din finansiering
+              Din BankID-identitet er bekreftet. Fyll inn budbeløp for å generere verifiseringskode.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!isLoggedIn ? (
-              <div className="space-y-4">
-                <Button
-                  onClick={handleBankIdLogin}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
-                  size="lg"
-                >
-                  <Shield className="w-5 h-5 mr-2" />
-                  Logg inn med BankID
-                </Button>
-                <p className="text-xs text-gray-500 text-center">Sikker innlogging med BankID</p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Fullt navn</Label>
+                <Input id="fullName" value={formData.fullName} readOnly />
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Fullt navn</Label>
-                  <Input
-                    id="fullName"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="border-blue-200 focus:border-blue-500"
-                    required
-                    readOnly
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="socialNumber">Fødselsnummer</Label>
-                  <Input
-                    id="socialNumber"
-                    value={formData.socialNumber}
-                    onChange={(e) => setFormData({ ...formData, socialNumber: e.target.value })}
-                    className="border-blue-200 focus:border-blue-500"
-                    required
-                    readOnly
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefon</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="border-blue-200 focus:border-blue-500"
-                    required
-                    readOnly
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bidAmount">Budbeløp (NOK)</Label>
-                  <Input
-                    id="bidAmount"
-                    type="number"
-                    placeholder="0"
-                    value={formData.bidAmount}
-                    onChange={(e) => setFormData({ ...formData, bidAmount: e.target.value })}
-                    className="border-blue-200 focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
-                  Bekreft finansiering
-                </Button>
-              </form>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="socialNumber">Fødselsnummer</Label>
+                <Input id="socialNumber" value={formData.socialNumber} readOnly />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefon</Label>
+                <Input id="phone" value={formData.phone} readOnly />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bidAmount">Budbeløp (NOK)</Label>
+                <Input
+                  id="bidAmount"
+                  type="number"
+                  placeholder="0"
+                  value={formData.bidAmount}
+                  onChange={(e) => setFormData({ ...formData, bidAmount: e.target.value })}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
+                Generer verifiseringskode
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
