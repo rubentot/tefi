@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
 import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,29 +18,45 @@ export default function FinansieringPage() {
     bidAmount: "",
   })
 
+  const [financingFile, setFinancingFile] = useState<File | null>(null)
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    setFinancingFile(file)
+  }
+
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const code = searchParams.get("code")
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get("code")
+
+    console.log("🔁 Code from URL:", code)
 
     if (code && !isLoggedIn) {
       const fetchToken = async () => {
-        const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri: "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering",
-            client_id: "sandbox-smoggy-shirt-166",
-            client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-          }),
-        })
+        try {
+          const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              code,
+              redirect_uri: "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering",
+              client_id: "sandbox-smoggy-shirt-166",
+              client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
+            }),
+          })
 
-        const tokenData = await tokenResponse.json()
+          const tokenData = await tokenResponse.json()
+          console.log("🔐 Token response:", tokenData)
 
-        if (tokenData.access_token) {
+          if (!tokenData.access_token) {
+            console.error("❌ Failed to get access token")
+            return
+          }
+
           const userInfoRes = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
             headers: {
               Authorization: `Bearer ${tokenData.access_token}`,
@@ -50,21 +64,24 @@ export default function FinansieringPage() {
           })
 
           const user = await userInfoRes.json()
+          console.log("👤 User info:", user)
 
           setFormData({
-            fullName: `${user.given_name} ${user.family_name}` || "",
-            socialNumber: user.sub || "",
-            phone: user.phone_number || "",
+            fullName: `${user.given_name ?? ""} ${user.family_name ?? ""}`,
+            socialNumber: user.sub ?? "",
+            phone: user.phone_number ?? "",
             bidAmount: "",
           })
 
           setIsLoggedIn(true)
+        } catch (err) {
+          console.error("💥 Error during BankID login:", err)
         }
       }
 
       fetchToken()
     }
-  }, [])
+  }, [isLoggedIn])
 
   const generateCode = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -75,47 +92,66 @@ export default function FinansieringPage() {
     return result
   }
 
-const handleBankIdLogin = () => {
-  const clientId = "sandbox-smoggy-shirt-166"
-  const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
-  const scope = "openid profile"
-  const responseType = "code"
-  const acr = "urn:signicat:oidc:method:nbid"
-  const prompt = "login"
-  const state = crypto.randomUUID() // optional but recommended
+  const handleBankIdLogin = () => {
+    const clientId = "sandbox-smoggy-shirt-166"
+    const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
+    const scope = "openid profile"
+    const responseType = "code"
+    const acr = "urn:signicat:oidc:method:nbid"
+    const prompt = "login"
+    const state = crypto.randomUUID()
 
-  const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
+    const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
 
-  window.location.href = authUrl
+    window.location.href = authUrl
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (!financingFile) {
+    alert("Du må laste opp et finansieringsbevis.")
+    return
+  }
+
+  const form = new FormData()
+  form.append("file", financingFile)
+
+  try {
+    const res = await fetch("/api/verify-upload", {
+      method: "POST",
+      body: form,
+    })
+
+    const data = await res.json()
+
+    if (data.success) {
+      const code = generateCode()
+
+      const verificationData = {
+        code,
+        fullName: formData.fullName,
+        bidAmount: formData.bidAmount,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      }
+
+      localStorage.setItem(`verification_${code}`, JSON.stringify(verificationData))
+      setVerificationCode(code)
+      setIsSubmitted(true)
+    } else {
+      alert("Verifisering feilet: " + data.message)
+    }
+  } catch (err) {
+    console.error("Upload failed:", err)
+    alert("Det oppstod en feil ved opplasting.")
+  }
 }
 
 
-
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const code = generateCode()
-    const verificationData = {
-      code,
-      fullName: formData.fullName,
-      bidAmount: formData.bidAmount,
-      timestamp: Date.now(),
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    }
-
-    localStorage.setItem(`verification_${code}`, JSON.stringify(verificationData))
-
-    setVerificationCode(code)
-    setIsSubmitted(true)
-  }
-
-  const copyCode = () => {
-    navigator.clipboard.writeText(verificationCode)
-  }
-
+  // 🎯 Success UI
   if (isSubmitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
@@ -231,6 +267,22 @@ const handleBankIdLogin = () => {
                     required
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="proof">Last opp finansieringsbevis (PDF eller bilde)</Label>
+                  <Input
+                    id="proof"
+                    type="file"
+                    accept=".pdf,.png,.jpg"
+                    onChange={(e) => handleFileUpload(e)}
+                    className="border-blue-200 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
+                  Bekreft finansiering
+                </Button>
 
                 <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
                   Bekreft finansiering
