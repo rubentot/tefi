@@ -1,6 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { writeFile, unlink } from "fs/promises"
-import path from "path"
 import { v4 as uuidv4 } from "uuid"
 import pdfParse from "pdf-parse"
 import { createWorker } from "tesseract.js"
