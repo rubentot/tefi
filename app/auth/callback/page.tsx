@@ -39,7 +39,7 @@ export default function AuthCallbackPage() {
           body: new URLSearchParams({
             grant_type: "authorization_code",
             code,
-            redirect_uri: `${baseUrl}/auth/callback`,
+            redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
             client_id: "sandbox-smoggy-shirt-166",
             client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
           }),
