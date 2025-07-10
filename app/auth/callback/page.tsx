@@ -54,17 +54,19 @@ export default function AuthCallbackPage() {
 
         console.log("🔐 Token response status:", tokenResponse.status)
 
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text()
-          throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`)
-        }
+      let tokenData: any
 
-        const tokenData = await tokenResponse.json()
-        console.log("🔐 Token data received")
+try {
+  tokenData = await tokenResponse.json()
+} catch (e) {
+  const rawBody = await tokenResponse.text()
+  throw new Error(`Token response was not valid JSON: ${tokenResponse.status} - ${rawBody}`)
+}
 
-        if (!tokenData.access_token) {
-          throw new Error("No access token received")
-        }
+if (!tokenResponse.ok) {
+  throw new Error(`Token exchange failed: ${tokenResponse.status} - ${JSON.stringify(tokenData)}`)
+}
+
 
         setDebugInfo("Henter brukerinformasjon...")
 
