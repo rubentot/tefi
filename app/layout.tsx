@@ -6,9 +6,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Finansieringsbekreftelse",
-  description: "Sikker finansieringsbekreftelse for eiendomsmeglere",
-    generator: 'v0.dev'
+  title: "Tefi - Finansieringsbekreftelse",
+  description: "Sikker elektronisk budgivning og finansieringsbekreftelse med Tefi",
 }
 
 export default function RootLayout({

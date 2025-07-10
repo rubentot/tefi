@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,19 +19,37 @@ export default function FinansieringPage() {
     phone: "",
     bidAmount: "",
   })
-
   const [financingFile, setFinancingFile] = useState<File | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
-    setFinancingFile(file)
+  const generateCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    let result = ""
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result
   }
 
+  const handleBankIdLogin = () => {
+    const clientId = "sandbox-smoggy-shirt-166"
+    const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
+    const scope = "openid profile"
+    const responseType = "code"
+    const acr = "urn:signicat:oidc:method:nbid"
+    const prompt = "login"
+    const state = crypto.randomUUID()
+
+    const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri,
+    )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
+
+    window.location.href = authUrl
+  }
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const code = urlParams.get("code")
-
     console.log("🔁 Code from URL:", code)
 
     if (code && !isLoggedIn) {
@@ -72,7 +92,6 @@ export default function FinansieringPage() {
             phone: user.phone_number ?? "",
             bidAmount: "",
           })
-
           setIsLoggedIn(true)
         } catch (err) {
           console.error("💥 Error during BankID login:", err)
@@ -83,75 +102,62 @@ export default function FinansieringPage() {
     }
   }, [isLoggedIn])
 
-  const generateCode = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    let result = ""
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFinancingFile(file)
     }
-    return result
-  }
-
-  const handleBankIdLogin = () => {
-    const clientId = "sandbox-smoggy-shirt-166"
-    const redirectUri = "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering"
-    const scope = "openid profile"
-    const responseType = "code"
-    const acr = "urn:signicat:oidc:method:nbid"
-    const prompt = "login"
-    const state = crypto.randomUUID()
-
-    const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
-
-    window.location.href = authUrl
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-
-  if (!financingFile) {
-    alert("Du må laste opp et finansieringsbevis.")
-    return
-  }
-
-  const form = new FormData()
-  form.append("file", financingFile)
-
-  try {
-    const res = await fetch("/api/verify-upload", {
-      method: "POST",
-      body: form,
-    })
-
-    const data = await res.json()
-
-    if (data.success) {
-      const code = generateCode()
-
-      const verificationData = {
-        code,
-        fullName: formData.fullName,
-        bidAmount: formData.bidAmount,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + 10 * 60 * 1000,
-      }
-
-      localStorage.setItem(`verification_${code}`, JSON.stringify(verificationData))
-      setVerificationCode(code)
-      setIsSubmitted(true)
-    } else {
-      alert("Verifisering feilet: " + data.message)
+    e.preventDefault()
+    if (!financingFile) {
+      alert("Du må laste opp et finansieringsbevis.")
+      return
     }
-  } catch (err) {
-    console.error("Upload failed:", err)
-    alert("Det oppstod en feil ved opplasting.")
+
+    setIsSubmitting(true)
+
+    const form = new FormData()
+    form.append("file", financingFile)
+    form.append("expectedName", formData.fullName)
+    form.append("expectedAmount", formData.bidAmount)
+
+    try {
+      const res = await fetch("/api/verify-upload", {
+        method: "POST",
+        body: form,
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        const code = generateCode()
+        const verificationData = {
+          code,
+          fullName: formData.fullName,
+          bidAmount: formData.bidAmount,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 10 * 60 * 1000,
+          documentVerified: true,
+        }
+        localStorage.setItem(`verification_${code}`, JSON.stringify(verificationData))
+        setVerificationCode(code)
+        setIsSubmitted(true)
+      } else {
+        alert("Verifisering feilet: " + data.message)
+      }
+    } catch (err) {
+      console.error("Upload failed:", err)
+      alert("Det oppstod en feil ved opplasting.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
-}
 
+  const copyCode = () => {
+    navigator.clipboard.writeText(verificationCode)
+  }
 
-  // 🎯 Success UI
   if (isSubmitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white p-4">
@@ -270,22 +276,40 @@ export default function FinansieringPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="proof">Last opp finansieringsbevis (PDF eller bilde)</Label>
-                  <Input
-                    id="proof"
-                    type="file"
-                    accept=".pdf,.png,.jpg"
-                    onChange={(e) => handleFileUpload(e)}
-                    className="border-blue-200 focus:border-blue-500"
-                    required
-                  />
+                  <div className="border-2 border-dashed border-blue-200 rounded-lg p-4 text-center hover:border-blue-300 transition-colors">
+                    <Input
+                      id="proof"
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      required
+                    />
+                    <label htmlFor="proof" className="cursor-pointer">
+                      {financingFile ? (
+                        <div className="text-green-600">
+                          <CheckCircle className="w-8 h-8 mx-auto mb-2" />
+                          <p className="font-medium">{financingFile.name}</p>
+                          <p className="text-sm text-gray-500">Klikk for å endre fil</p>
+                        </div>
+                      ) : (
+                        <div className="text-gray-500">
+                          <Shield className="w-8 h-8 mx-auto mb-2" />
+                          <p className="font-medium">Klikk for å laste opp fil</p>
+                          <p className="text-sm">PDF, PNG eller JPG (maks 5MB)</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
                 </div>
 
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
-                  Bekreft finansiering
-                </Button>
-
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6" size="lg">
-                  Bekreft finansiering
+                <Button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-6"
+                  size="lg"
+                  disabled={isSubmitting || !financingFile}
+                >
+                  {isSubmitting ? "Verifiserer dokument..." : "Bekreft finansiering"}
                 </Button>
               </form>
             )}
