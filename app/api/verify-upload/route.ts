@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Save file temporarily to /tmp (safe for Vercel)
+    // Save file temporarily
     const tmpPath = path.join("/tmp", `${uuidv4()}-${file.name}`)
     await writeFile(tmpPath, buffer)
 
@@ -41,16 +41,19 @@ export async function POST(req: NextRequest) {
       await worker.terminate()
     }
 
-    await unlink(tmpPath)
+    await unlink(tmpPath) // Delete file immediately
 
     console.log("📝 Extracted text:", extractedText.substring(0, 200) + "...")
 
+    // Clean and normalize text for better matching
     const normalizedText = extractedText.toLowerCase().replace(/\s+/g, " ")
     const normalizedName = expectedName.toLowerCase().replace(/\s+/g, " ")
 
+    // Check for name match (more flexible matching)
     const nameWords = normalizedName.split(" ")
     const nameMatch = nameWords.every((word) => normalizedText.includes(word))
 
+    // Check for amount match (extract all numbers and look for the amount)
     const numbersInText = extractedText.replace(/\D/g, "")
     const expectedAmountStr = expectedAmount.replace(/\D/g, "")
     const amountMatch = numbersInText.includes(expectedAmountStr)
@@ -68,19 +71,21 @@ export async function POST(req: NextRequest) {
         success: true,
         message: "Finansieringsbevis er verifisert og stemmer overens med oppgitt informasjon.",
       })
-    }
-
-    let errorMessage = "Verifisering feilet: "
-    if (!nameMatch && !amountMatch) {
-      errorMessage += "Verken navn eller beløp stemmer med det som ble sendt inn."
-    } else if (!nameMatch) {
-      errorMessage += "Navnet stemmer ikke med det som ble sendt inn."
     } else {
-      errorMessage += "Beløpet stemmer ikke med det som ble sendt inn."
+      let errorMessage = "Verifisering feilet: "
+      if (!nameMatch && !amountMatch) {
+        errorMessage += "Verken navn eller beløp stemmer med det som ble sendt inn."
+      } else if (!nameMatch) {
+        errorMessage += "Navnet stemmer ikke med det som ble sendt inn."
+      } else {
+        errorMessage += "Beløpet stemmer ikke med det som ble sendt inn."
+      }
+
+      return NextResponse.json({
+        success: false,
+        message: errorMessage,
+      })
     }
-
-    return NextResponse.json({ success: false, message: errorMessage })
-
   } catch (err: any) {
     console.error("⛔ Error during file processing:", err)
     return NextResponse.json(

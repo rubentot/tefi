@@ -10,13 +10,18 @@ export default function HomePage() {
 
   const handleBankIdLogin = (role: "bidder" | "broker") => {
     const clientId = "sandbox-smoggy-shirt-166"
+
+    // This will work for both localhost and production
     const baseUrl = window.location.origin
     const redirectUri = `${baseUrl}/auth/callback`
+
     const scope = "openid profile"
     const responseType = "code"
     const acr = "urn:signicat:oidc:method:nbid"
     const prompt = "login"
-    const state = `${crypto.randomUUID()}_${role}` // Include role in state
+    const state = `${crypto.randomUUID()}_${role}`
+
+    console.log("🔗 Redirect URI:", redirectUri) // For debugging
 
     const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
       redirectUri,
@@ -41,9 +46,7 @@ export default function HomePage() {
             <p className="text-xl md:text-2xl text-gray-700 mb-4 max-w-3xl mx-auto">
               Sikker elektronisk budgivning og finansieringsbekreftelse
             </p>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Logg inn med BankID for å få tilgang til Norges mest avanserte plattform for eiendomshandel
-            </p>
+            <p className="text-gray-600 max-w-2xl mx-auto">Logg inn med BankID for å starte budprosessen på eiendom</p>
           </div>
 
           {/* Role Selection Cards */}
@@ -69,10 +72,10 @@ export default function HomePage() {
               <CardContent className="relative">
                 <div className="space-y-3 mb-6">
                   {[
-                    "Gi bud på eiendommer",
-                    "Bekreft finansiering med BankID",
-                    "Last opp finansieringsbevis",
-                    "Få verifiseringskode til megler",
+                    "Elektronisk budgivning",
+                    "BankID-autentisering",
+                    "Automatisk utfylling av persondata",
+                    "Sikker budprosess",
                   ].map((feature, index) => (
                     <div key={index} className="flex items-center space-x-3">
                       <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
@@ -87,7 +90,7 @@ export default function HomePage() {
                     size="lg"
                   >
                     <Shield className="w-5 h-5 mr-2" />
-                    Logg inn som budgiver
+                    Start budprosess med BankID
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 )}
@@ -149,120 +152,35 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Features Section */}
-      <div className="bg-white py-20">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Hvorfor velge Tefi?</h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Den mest avanserte og sikre plattformen for elektronisk budgivning i Norge
-            </p>
-          </div>
-
+      {/* Info Section */}
+      <div className="bg-white py-16">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">Slik fungerer det</h2>
           <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Shield,
-                title: "100% Sikker",
-                description: "BankID-autentisering og kryptert dataoverføring beskytter all informasjon",
-                color: "from-green-400 to-emerald-500",
-              },
-              {
-                icon: CheckCircle,
-                title: "Automatisk Verifisering",
-                description: "AI-drevet dokumentverifisering og OCR-teknologi for rask behandling",
-                color: "from-blue-400 to-indigo-500",
-              },
-              {
-                icon: Building,
-                title: "Profesjonell Plattform",
-                description: "Brukes av ledende eiendomsmeglere over hele Norge",
-                color: "from-purple-400 to-pink-500",
-              },
-            ].map((feature, index) => (
-              <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardContent className="p-8 text-center">
-                  <div
-                    className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br ${feature.color} rounded-xl mb-6`}
-                  >
-                    <feature.icon className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h3>
-                  <p className="text-gray-600">{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <span className="text-blue-600 font-bold text-xl">1</span>
+              </div>
+              <h3 className="font-semibold text-lg">Logg inn med BankID</h3>
+              <p className="text-gray-600">Sikker autentisering med norsk BankID</p>
+            </div>
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <span className="text-blue-600 font-bold text-xl">2</span>
+              </div>
+              <h3 className="font-semibold text-lg">Fyll ut budskjema</h3>
+              <p className="text-gray-600">Persondata fylles automatisk ut fra BankID</p>
+            </div>
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <span className="text-blue-600 font-bold text-xl">3</span>
+              </div>
+              <h3 className="font-semibold text-lg">Send bud</h3>
+              <p className="text-gray-600">Budet sendes sikkert til megler</p>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-16">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-lg flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold">Tefi</h3>
-              </div>
-              <p className="text-gray-300 mb-6 max-w-md">
-                Tefi er Norges ledende plattform for sikker elektronisk budgivning og finansieringsbekreftelse. Med
-                BankID kan både budgivere og meglere trygt håndtere hele budprosessen digitalt.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-lg mb-4">Tjenester</h4>
-              <ul className="space-y-2 text-gray-300">
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Elektronisk budgivning
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Finansieringsbekreftelse
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Dokumentverifisering
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-lg mb-4">Support</h4>
-              <ul className="space-y-2 text-gray-300">
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Slik fungerer tjenesten
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Personvernerklæring
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-white transition-colors">
-                    Kontakt oss
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-700 mt-12 pt-8 text-center">
-            <p className="text-gray-400">
-              © 2024 Tefi. Tefi er en del av eiendomsmeglerprogramvaren Webmegler - levert av Broker AS.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

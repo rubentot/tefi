@@ -27,6 +27,9 @@ export default function AuthCallbackPage() {
           throw new Error("Ugyldig rolle i state parameter")
         }
 
+        // Get the current domain (works for both localhost and production)
+        const baseUrl = window.location.origin
+
         // Exchange code for token
         const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
           method: "POST",
@@ -36,7 +39,7 @@ export default function AuthCallbackPage() {
           body: new URLSearchParams({
             grant_type: "authorization_code",
             code,
-            redirect_uri: `${window.location.origin}/auth/callback`,
+            redirect_uri: `${baseUrl}/auth/callback`,
             client_id: "sandbox-smoggy-shirt-166",
             client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
           }),
@@ -75,9 +78,10 @@ export default function AuthCallbackPage() {
 
         localStorage.setItem("bankid_session", JSON.stringify(sessionData))
 
-        // Redirect based on role
+        // REDIRECT DIRECTLY TO THE BIDDING FORM (PDF PAGES)
         if (role === "bidder") {
-          window.location.href = "/eiendom" // Go to property listing first
+          // Go directly to the personal information form from the PDF
+          window.location.href = "/eiendom/3837340"
         } else if (role === "broker") {
           window.location.href = "/verifiser"
         }
@@ -122,10 +126,10 @@ export default function AuthCallbackPage() {
           <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
-          <CardTitle className="text-2xl text-blue-900">Logger inn...</CardTitle>
+          <CardTitle className="text-2xl text-blue-900">Logger inn med BankID...</CardTitle>
         </CardHeader>
         <CardContent className="text-center">
-          <p className="text-gray-600">Behandler BankID-innlogging, vennligst vent...</p>
+          <p className="text-gray-600">Behandler innlogging og forbereder budskjema...</p>
         </CardContent>
       </Card>
     </div>
