@@ -136,13 +136,25 @@ export default function PropertyListPage() {
         </div>
       </div>
 
-      {/* Property Listings */}
+      {/* Welcome Message */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Eiendommer du kan by på</h2>
-          <p className="text-gray-600 text-lg">
-            Du er logget inn som budgiver og kan nå gi bud på tilgjengelige eiendommer.
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-8 text-white mb-8">
+          <h2 className="text-3xl font-bold mb-4">Velkommen til Tefi, {session?.user.name?.split(" ")[0]}!</h2>
+          <p className="text-blue-100 text-lg mb-6">
+            Du er nå logget inn med BankID og kan gi bud på tilgjengelige eiendommer. Velg en eiendom nedenfor for å
+            starte budprosessen.
           </p>
+          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+            <p className="text-sm">
+              💡 <strong>Tips:</strong> Når du gir bud, kan du også bekrefte din finansiering direkte i systemet for å
+              styrke budet ditt.
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Tilgjengelige eiendommer</h3>
+          <p className="text-gray-600 text-lg">Klikk på en eiendom for å starte den elektroniske budprosessen.</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -191,7 +203,7 @@ export default function PropertyListPage() {
 
                 <Link href={`/eiendom/${property.id}`}>
                   <Button className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
-                    Gi bud på denne eiendommen
+                    Start budprosess →
                   </Button>
                 </Link>
               </CardContent>

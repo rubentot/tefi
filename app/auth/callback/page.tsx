@@ -77,7 +77,7 @@ export default function AuthCallbackPage() {
 
         // Redirect based on role
         if (role === "bidder") {
-          window.location.href = "/eiendom"
+          window.location.href = "/eiendom" // Go to property listing first
         } else if (role === "broker") {
           window.location.href = "/verifiser"
         }
