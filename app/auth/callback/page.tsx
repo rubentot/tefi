@@ -36,110 +36,46 @@ export default function AuthCallbackPage() {
           throw new Error("Ugyldig rolle i state parameter")
         }
 
-        setDebugInfo(`Exchanging code for token...`)
+        setDebugInfo(`Exchanging code for token via server...`)
 
-        // Exchange code for token
-        const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
+        // Use server-side API route for token exchange
+        const response = await fetch("/api/auth/token", {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",
           },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
-            client_id: "sandbox-smoggy-shirt-166",
-            client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-          }),
+          body: JSON.stringify({ code, state }),
         })
 
-        console.log("🔐 Token response status:", tokenResponse.status)
-        console.log("🔐 Token response headers:", Object.fromEntries(tokenResponse.headers.entries()))
+        console.log("🔄 Server API response status:", response.status)
 
-        // Check if response is ok
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text()
-          console.error("❌ Token response error:", errorText)
-          throw new Error(`Token request failed: ${tokenResponse.status} - ${errorText}`)
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error("❌ Server API error:", errorData)
+          throw new Error(`Server error: ${errorData.error} - ${errorData.details || ""}`)
         }
 
-        // Get response text first to debug
-        const responseText = await tokenResponse.text()
-        console.log("🔐 Raw token response:", responseText)
+        const data = await response.json()
+        console.log("✅ Server API success:", data)
 
-        if (!responseText || responseText.trim() === "") {
-          throw new Error("Empty response from token endpoint")
+        if (!data.success || !data.sessionData) {
+          throw new Error("Invalid response from server")
         }
-
-        let tokenData
-        try {
-          tokenData = JSON.parse(responseText)
-        } catch (parseError) {
-          console.error("❌ JSON parse error:", parseError)
-          throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}...`)
-        }
-
-        console.log("🔐 Parsed token data:", tokenData)
-
-        if (!tokenData.access_token) {
-          throw new Error(`No access token in response: ${JSON.stringify(tokenData)}`)
-        }
-
-        setDebugInfo(`Getting user info...`)
-
-        // Get user info
-        const userInfoResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-          },
-        })
-
-        console.log("👤 User info response status:", userInfoResponse.status)
-
-        if (!userInfoResponse.ok) {
-          const errorText = await userInfoResponse.text()
-          console.error("❌ User info error:", errorText)
-          throw new Error(`User info request failed: ${userInfoResponse.status} - ${errorText}`)
-        }
-
-        const userInfoText = await userInfoResponse.text()
-        console.log("👤 Raw user info response:", userInfoText)
-
-        let userInfo
-        try {
-          userInfo = JSON.parse(userInfoText)
-        } catch (parseError) {
-          console.error("❌ User info JSON parse error:", parseError)
-          throw new Error(`Invalid user info JSON: ${userInfoText.substring(0, 200)}...`)
-        }
-
-        console.log("👤 Parsed user info:", userInfo)
 
         // Store user session
-        const sessionData = {
-          role,
-          user: {
-            id: userInfo.sub || "unknown",
-            name: `${userInfo.given_name || ""} ${userInfo.family_name || ""}`.trim() || "Unknown User",
-            email: userInfo.email || "",
-            phone: userInfo.phone_number || "",
-            socialNumber: userInfo.sub || "",
-          },
-          accessToken: tokenData.access_token,
-          loginTime: Date.now(),
-        }
-
-        localStorage.setItem("bankid_session", JSON.stringify(sessionData))
+        localStorage.setItem("bankid_session", JSON.stringify(data.sessionData))
 
         setDebugInfo(`Redirecting to ${role} dashboard...`)
 
-        // REDIRECT DIRECTLY TO THE BIDDING FORM (PDF PAGES)
-        if (role === "bidder") {
-          // Go directly to the personal information form from the PDF
-          window.location.href = "/eiendom/3837340"
-        } else if (role === "broker") {
-          window.location.href = "/verifiser"
-        }
+        // Small delay to show success message
+        setTimeout(() => {
+          // REDIRECT DIRECTLY TO THE BIDDING FORM (PDF PAGES)
+          if (role === "bidder") {
+            window.location.href = "/eiendom/3837340"
+          } else if (role === "broker") {
+            window.location.href = "/verifiser"
+          }
+        }, 1000)
       } catch (err: any) {
         console.error("💥 Auth callback error:", err)
         setError(err.message || "En feil oppstod under innlogging")

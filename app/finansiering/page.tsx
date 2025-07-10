@@ -65,7 +65,7 @@ export default function FinansieringPage() {
               code,
               redirect_uri: "https://v0-norwegian-web-k4esptobi-tottermancrypto-5092s-projects.vercel.app/finansiering",
               client_id: "sandbox-smoggy-shirt-166",
-              client_secret: "NBJQwc61fyYmwy85fAWScaQjQ2JrAOZLIanxdFKahEhmHH74",
+              client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
             }),
           })
 
