@@ -18,7 +18,7 @@ export default function AuthCallbackPage() {
         const error_param = urlParams.get("error")
         const error_description = urlParams.get("error_description")
 
-        console.log("🔁 Auth callback - Code:", code, "State:", state)
+        console.log("🔁 Auth callback - Code:", code?.substring(0, 10) + "...", "State:", state)
         console.log("🔁 Error params:", error_param, error_description)
 
         // Check for OAuth errors first
@@ -30,15 +30,11 @@ export default function AuthCallbackPage() {
           throw new Error("Mangler autorisasjonskode eller state parameter")
         }
 
-        // Extract role from state
-        const [, role] = state.split("_")
-        if (!role || !["bidder", "broker"].includes(role)) {
-          throw new Error("Ugyldig rolle i state parameter")
-        }
+        setDebugInfo("Sender forespørsel til server...")
 
-        setDebugInfo(`Exchanging code for token via server...`)
+        console.log("📤 Calling /api/auth/token")
 
-        // Use server-side API route for token exchange
+        // Call our API route
         const response = await fetch("/api/auth/token", {
           method: "POST",
           headers: {
@@ -47,39 +43,53 @@ export default function AuthCallbackPage() {
           body: JSON.stringify({ code, state }),
         })
 
-        console.log("🔄 Server API response status:", response.status)
+        console.log("📥 API response status:", response.status)
+        console.log("📥 API response headers:", Object.fromEntries(response.headers.entries()))
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("❌ Server API error:", errorData)
-          throw new Error(`Server error: ${errorData.error} - ${errorData.details || ""}`)
+        // Get response text first to debug
+        const responseText = await response.text()
+        console.log("📥 API response text:", responseText)
+
+        if (!responseText || responseText.trim() === "") {
+          throw new Error("Tom respons fra server API")
         }
 
-        const data = await response.json()
-        console.log("✅ Server API success:", data)
+        let data
+        try {
+          data = JSON.parse(responseText)
+        } catch (parseError) {
+          console.error("❌ Client JSON parse error:", parseError)
+          throw new Error(`Ugyldig JSON fra server: ${responseText.substring(0, 200)}`)
+        }
 
-        if (!data.success || !data.sessionData) {
-          throw new Error("Invalid response from server")
+        console.log("✅ Parsed API response:", data)
+
+        if (!data.success) {
+          throw new Error(`Server feil: ${data.error} - ${data.details || ""}`)
+        }
+
+        if (!data.sessionData) {
+          throw new Error("Mangler session data fra server")
         }
 
         // Store user session
         localStorage.setItem("bankid_session", JSON.stringify(data.sessionData))
 
-        setDebugInfo(`Redirecting to ${role} dashboard...`)
+        const role = data.sessionData.role
+        setDebugInfo(`Omdirigerer til ${role} dashboard...`)
 
         // Small delay to show success message
         setTimeout(() => {
-          // REDIRECT DIRECTLY TO THE BIDDING FORM (PDF PAGES)
           if (role === "bidder") {
             window.location.href = "/eiendom/3837340"
           } else if (role === "broker") {
             window.location.href = "/verifiser"
           }
-        }, 1000)
+        }, 1500)
       } catch (err: any) {
         console.error("💥 Auth callback error:", err)
-        setError(err.message || "En feil oppstod under innlogging")
-        setDebugInfo(`Error: ${err.message}`)
+        setError(err.message || "En ukjent feil oppstod")
+        setDebugInfo(`Feil: ${err.message}`)
         setIsProcessing(false)
       }
     }
@@ -95,27 +105,32 @@ export default function AuthCallbackPage() {
             <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
               <Shield className="w-8 h-8 text-red-600" />
             </div>
-            <CardTitle className="text-2xl text-red-900">Innlogging feilet</CardTitle>
+            <CardTitle className="text-2xl text-red-900">BankID innlogging feilet</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-red-50 p-4 rounded-lg border border-red-200">
               <p className="text-red-700 font-medium mb-2">Feilmelding:</p>
-              <p className="text-red-600 text-sm">{error}</p>
+              <p className="text-red-600 text-sm break-words">{error}</p>
             </div>
 
             {debugInfo && (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <p className="text-gray-700 font-medium mb-2">Debug info:</p>
-                <p className="text-gray-600 text-sm font-mono">{debugInfo}</p>
+                <p className="text-gray-600 text-sm font-mono break-words">{debugInfo}</p>
               </div>
             )}
 
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-blue-700 font-medium mb-2">Mulige løsninger:</p>
+              <p className="text-blue-700 font-medium mb-2">Sjekk følgende:</p>
               <ul className="text-blue-600 text-sm space-y-1">
-                <li>• Sjekk at Signicat redirect URI er konfigurert riktig</li>
-                <li>• Kontroller at client_id og client_secret er korrekte</li>
-                <li>• Prøv å logge inn på nytt</li>
+                <li>
+                  • Er Signicat redirect URI konfigurert som:{" "}
+                  <code className="bg-blue-100 px-1 rounded text-xs">
+                    https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback
+                  </code>
+                </li>
+                <li>• Er client_id og client_secret korrekte?</li>
+                <li>• Sjekk Vercel function logs for server-side feil</li>
               </ul>
             </div>
 
@@ -143,10 +158,10 @@ export default function AuthCallbackPage() {
           <CardTitle className="text-2xl text-blue-900">Logger inn med BankID...</CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
-          <p className="text-gray-600">Behandler innlogging og forbereder budskjema...</p>
+          <p className="text-gray-600">Behandler BankID-autentisering...</p>
           {debugInfo && (
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <p className="text-blue-700 text-sm font-mono">{debugInfo}</p>
+              <p className="text-blue-700 text-sm">{debugInfo}</p>
             </div>
           )}
         </CardContent>

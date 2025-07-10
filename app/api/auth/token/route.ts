@@ -1,69 +1,98 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-export async function POST(req: NextRequest) {
-  try {
-    const { code, state } = await req.json()
+export async function POST(request: NextRequest) {
+  console.log("🚀 Token API route called")
 
-    console.log("🔄 Server-side token exchange for code:", code)
+  try {
+    const body = await request.json()
+    console.log("📝 Request body:", body)
+
+    const { code, state } = body
 
     if (!code || !state) {
-      return NextResponse.json({ error: "Missing code or state parameter" }, { status: 400 })
+      console.log("❌ Missing code or state")
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing code or state parameter",
+        },
+        { status: 400 },
+      )
     }
 
     // Extract role from state
     const [, role] = state.split("_")
     if (!role || !["bidder", "broker"].includes(role)) {
-      return NextResponse.json({ error: "Invalid role in state parameter" }, { status: 400 })
+      console.log("❌ Invalid role:", role)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid role in state parameter",
+        },
+        { status: 400 },
+      )
     }
 
-    // Exchange code for token
+    console.log("🔄 Exchanging code for token...")
+
+    // Token exchange
+    const tokenParams = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
+      client_id: "sandbox-smoggy-shirt-166",
+      client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
+    })
+
+    console.log("📤 Token request params:", tokenParams.toString())
+
     const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
       },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
-        client_id: "sandbox-smoggy-shirt-166",
-        client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-      }),
+      body: tokenParams,
     })
 
-    console.log("🔐 Token response status:", tokenResponse.status)
-    console.log("🔐 Token response headers:", Object.fromEntries(tokenResponse.headers.entries()))
+    console.log("📥 Token response status:", tokenResponse.status)
+    console.log("📥 Token response headers:", Object.fromEntries(tokenResponse.headers.entries()))
+
+    const tokenText = await tokenResponse.text()
+    console.log("📥 Token response text:", tokenText)
 
     if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      console.error("❌ Token response error:", errorText)
       return NextResponse.json(
         {
+          success: false,
           error: "Token exchange failed",
-          details: `${tokenResponse.status}: ${errorText}`,
-          status: tokenResponse.status,
+          details: `Status: ${tokenResponse.status}, Response: ${tokenText}`,
         },
         { status: 500 },
       )
     }
 
-    const responseText = await tokenResponse.text()
-    console.log("🔐 Raw token response:", responseText)
-
-    if (!responseText || responseText.trim() === "") {
-      return NextResponse.json({ error: "Empty response from token endpoint" }, { status: 500 })
+    if (!tokenText || tokenText.trim() === "") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Empty token response",
+        },
+        { status: 500 },
+      )
     }
 
     let tokenData
     try {
-      tokenData = JSON.parse(responseText)
+      tokenData = JSON.parse(tokenText)
+      console.log("✅ Token data parsed:", tokenData)
     } catch (parseError) {
-      console.error("❌ JSON parse error:", parseError)
+      console.log("❌ Token JSON parse error:", parseError)
       return NextResponse.json(
         {
-          error: "Invalid JSON response from token endpoint",
-          details: responseText.substring(0, 500),
+          success: false,
+          error: "Invalid token JSON",
+          details: tokenText.substring(0, 500),
         },
         { status: 500 },
       )
@@ -72,55 +101,57 @@ export async function POST(req: NextRequest) {
     if (!tokenData.access_token) {
       return NextResponse.json(
         {
-          error: "No access token in response",
+          success: false,
+          error: "No access token",
           details: JSON.stringify(tokenData),
         },
         { status: 500 },
       )
     }
 
+    console.log("🔄 Getting user info...")
+
     // Get user info
-    const userInfoResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
+    const userResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
         Accept: "application/json",
       },
     })
 
-    console.log("👤 User info response status:", userInfoResponse.status)
+    console.log("📥 User response status:", userResponse.status)
 
-    if (!userInfoResponse.ok) {
-      const errorText = await userInfoResponse.text()
-      console.error("❌ User info error:", errorText)
+    const userText = await userResponse.text()
+    console.log("📥 User response text:", userText)
+
+    if (!userResponse.ok) {
       return NextResponse.json(
         {
-          error: "User info request failed",
-          details: `${userInfoResponse.status}: ${errorText}`,
+          success: false,
+          error: "User info failed",
+          details: `Status: ${userResponse.status}, Response: ${userText}`,
         },
         { status: 500 },
       )
     }
-
-    const userInfoText = await userInfoResponse.text()
-    console.log("👤 Raw user info response:", userInfoText)
 
     let userInfo
     try {
-      userInfo = JSON.parse(userInfoText)
+      userInfo = JSON.parse(userText)
+      console.log("✅ User info parsed:", userInfo)
     } catch (parseError) {
-      console.error("❌ User info JSON parse error:", parseError)
+      console.log("❌ User JSON parse error:", parseError)
       return NextResponse.json(
         {
-          error: "Invalid user info JSON",
-          details: userInfoText.substring(0, 500),
+          success: false,
+          error: "Invalid user JSON",
+          details: userText.substring(0, 500),
         },
         { status: 500 },
       )
     }
 
-    console.log("👤 Parsed user info:", userInfo)
-
-    // Return session data
+    // Create session data
     const sessionData = {
       role,
       user: {
@@ -134,11 +165,17 @@ export async function POST(req: NextRequest) {
       loginTime: Date.now(),
     }
 
-    return NextResponse.json({ success: true, sessionData })
+    console.log("✅ Session data created:", sessionData)
+
+    return NextResponse.json({
+      success: true,
+      sessionData,
+    })
   } catch (error: any) {
-    console.error("💥 Server-side auth error:", error)
+    console.error("💥 API route error:", error)
     return NextResponse.json(
       {
+        success: false,
         error: "Internal server error",
         details: error.message,
       },
