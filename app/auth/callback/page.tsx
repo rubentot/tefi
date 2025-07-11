@@ -65,14 +65,7 @@ export default function AuthCallbackPage() {
         setDebugInfo(`Omdirigerer til ${role} dashboard...`);
 
         setTimeout(() => {
-          // Role-based redirect (your current setup)
-          if (role === "bidder") {
-            window.location.href = "/eiendom/3837340";
-          } else if (role === "broker") {
-            window.location.href = "/verifiser";
-          }
-          // Alternative: Unified dashboard (uncomment if preferred)
-          // window.location.href = "/dashboard";
+          window.location.href = "/dashboard";
         }, 1500);
       } catch (err: any) {
         console.error("Auth callback error:", err);

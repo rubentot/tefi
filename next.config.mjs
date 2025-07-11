@@ -1,29 +1,15 @@
-// next.config.js
-
-const webpack = require("webpack")
+import webpack from 'webpack';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Your other config options here...
+  webpack: (config, { isServer }) => {
+    // Example: Add a webpack plugin
+    config.plugins.push(new webpack.DefinePlugin({
+      'process.env.SOME_VAR': JSON.stringify('value'),
+    }));
+    return config;
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-  webpack(config, { isServer }) {
-    if (isServer) {
-      config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /pdf-parse\/test/,
-        })
-      )
-    }
-    return config
-  },
-}
+};
 
-module.exports = nextConfig
-
+export default nextConfig;

@@ -40,6 +40,7 @@
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "eslint": "^8",
-    "eslint-config-next": "14.0.0"
+    "eslint-config-next": "14.0.0",
+    "webpack": "^5.100.1"
   }
 }
