@@ -9,119 +9,77 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
 
-  useEffect(() => {
-    const handleAuthCallback = async () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search)
-        const code = urlParams.get("code")
-        const state = urlParams.get("state")
-        const error_param = urlParams.get("error")
-        const error_description = urlParams.get("error_description")
+useEffect(() => {
+  const handleAuthCallback = async () => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+      const error_param = urlParams.get("error");
+      const error_description = urlParams.get("error_description");
 
-        console.log("🔁 Auth callback - Code:", code?.substring(0, 10) + "...", "State:", state)
+      console.log("🔁 Auth callback - Code:", code?.substring(0, 10) + "...", "State:", state);
 
-        // Check for OAuth errors first
-        if (error_param) {
-          throw new Error(`OAuth Error: ${error_param} - ${error_description || "Unknown error"}`)
-        }
-
-        if (!code || !state) {
-          throw new Error("Mangler autorisasjonskode eller state parameter")
-        }
-
-        // Extract role from state
-        const [, role] = state.split("_")
-        if (!role || !["bidder", "broker"].includes(role)) {
-          throw new Error("Ugyldig rolle i state parameter")
-        }
-
-        setDebugInfo("Utveksler autorisasjonskode direkte...")
-
-        // Exchange code for token directly (simplified approach)
-        // ... (existing code)
-
-const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/x-www-form-urlencoded",
-    "Authorization": `Basic ${btoa("sandbox-smoggy-shirt-166:5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd")}`,
-  },
-  body: new URLSearchParams({
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
-  }),
-});
-
-// ... (rest of the code remains the same)
-
-        console.log("🔐 Token response status:", tokenResponse.status)
-
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text()
-          throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`)
-        }
-
-        const tokenData = await tokenResponse.json()
-        console.log("🔐 Token data received")
-
-        if (!tokenData.access_token) {
-          throw new Error("No access token received")
-        }
-
-        setDebugInfo("Henter brukerinformasjon...")
-
-        // Get user info
-        const userInfoResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-          },
-        })
-
-        if (!userInfoResponse.ok) {
-          const errorText = await userInfoResponse.text()
-          throw new Error(`User info failed: ${userInfoResponse.status} - ${errorText}`)
-        }
-
-        const userInfo = await userInfoResponse.json()
-        console.log("👤 User info received")
-
-        // Store user session
-        const sessionData = {
-          role,
-          user: {
-            id: userInfo.sub || "unknown",
-            name: `${userInfo.given_name || ""} ${userInfo.family_name || ""}`.trim() || "Unknown User",
-            email: userInfo.email || "",
-            phone: userInfo.phone_number || "",
-            socialNumber: userInfo.sub || "",
-          },
-          accessToken: tokenData.access_token,
-          loginTime: Date.now(),
-        }
-
-        localStorage.setItem("bankid_session", JSON.stringify(sessionData))
-
-        setDebugInfo(`Omdirigerer til ${role} dashboard...`)
-
-        // Redirect based on role
-        setTimeout(() => {
-          if (role === "bidder") {
-            window.location.href = "/eiendom/3837340"
-          } else if (role === "broker") {
-            window.location.href = "/verifiser"
-          }
-        }, 1500)
-      } catch (err: any) {
-        console.error("💥 Auth callback error:", err)
-        setError(err.message || "En ukjent feil oppstod")
-        setDebugInfo(`Feil: ${err.message}`)
-        setIsProcessing(false)
+      if (error_param) {
+        throw new Error(`OAuth Error: ${error_param} - ${error_description || "Unknown error"}`);
       }
-    }
 
-    handleAuthCallback()
-  }, [])
+      if (!code || !state) {
+        throw new Error("Mangler autorisasjonskode eller state parameter");
+      }
+
+      // Extract role from state
+      const [, role] = state.split("_");
+      if (!role || !["bidder", "broker"].includes(role)) {
+        throw new Error("Ugyldig rolle i state parameter");
+      }
+
+      setDebugInfo("Utveksler autorisasjonskode via server...");
+
+      // POST to your server-side API route for token exchange
+      const tokenResponse = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code, state }),
+      });
+
+      console.log("🔐 Token response status:", tokenResponse.status);
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      if (!tokenData.sessionData) {
+        throw new Error("No session data returned from server");
+      }
+
+      // Store session and redirect (as before)
+      localStorage.setItem("bankid_session", JSON.stringify(tokenData.sessionData));
+
+      setDebugInfo(`Omdirigerer til ${role} dashboard...`);
+
+      setTimeout(() => {
+        if (role === "bidder") {
+          window.location.href = "/eiendom/3837340";
+        } else if (role === "broker") {
+          window.location.href = "/verifiser";
+        }
+      }, 1500);
+    } catch (err: any) {
+      console.error("💥 Auth callback error:", err);
+      setError(err.message || "En ukjent feil oppstod");
+      setDebugInfo(`Feil: ${err.message}`);
+      setIsProcessing(false);
+    }
+  };
+
+  handleAuthCallback();
+}, []);
 
   if (error) {
     return (
