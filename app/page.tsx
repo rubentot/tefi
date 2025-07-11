@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Shield, User, Building, CheckCircle, ArrowRight } from "lucide-react"
 
 export default function HomePage() {
@@ -11,9 +11,8 @@ export default function HomePage() {
   const handleBankIdLogin = (role: "bidder" | "broker") => {
     const clientId = "sandbox-smoggy-shirt-166"
 
-    // This will work for both localhost and production
-    const baseUrl = window.location.origin
-    const redirectUri = `${baseUrl}/auth/callback`
+    // Dynamic redirect URI based on current origin
+    const redirectUri = `${window.location.origin}/auth/callback`
 
     const scope = "openid profile"
     const responseType = "code"
@@ -24,7 +23,7 @@ export default function HomePage() {
     console.log("🔗 Redirect URI:", redirectUri) // For debugging
 
     const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri,
+      redirectUri
     )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
 
     window.location.href = authUrl

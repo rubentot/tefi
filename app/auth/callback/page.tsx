@@ -36,13 +36,14 @@ useEffect(() => {
 
       setDebugInfo("Utveksler autorisasjonskode via server...");
 
-      // POST to your server-side API route for token exchange
+      const redirectUri = `${window.location.origin}/auth/callback`;
+
       const tokenResponse = await fetch("/api/auth/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ code, state }),
+        body: JSON.stringify({ code, state, redirect_uri: redirectUri }),
       });
 
       console.log("🔐 Token response status:", tokenResponse.status);
@@ -71,7 +72,7 @@ useEffect(() => {
         }
       }, 1500);
     } catch (err: any) {
-      console.error("💥 Auth callback error:", err);
+      console.error("Auth callback error:", err);
       setError(err.message || "En ukjent feil oppstod");
       setDebugInfo(`Feil: ${err.message}`);
       setIsProcessing(false);
@@ -104,26 +105,11 @@ useEffect(() => {
               </div>
             )}
 
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-blue-700 font-medium mb-2">Mulige løsninger:</p>
-              <ul className="text-blue-600 text-sm space-y-1">
-                <li>
-                  • Sjekk at Signicat redirect URI er:{" "}
-                  <code className="bg-blue-100 px-1 rounded text-xs">
-                    https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback
-                  </code>
-                </li>
-                <li>• Kontroller at client_id og client_secret er korrekte</li>
-                <li>• Prøv å logge inn på nytt</li>
-              </ul>
-            </div>
-
             <div className="text-center">
               <button
                 onClick={() => (window.location.href = "/")}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
               >
-                Prøv igjen
               </button>
             </div>
           </CardContent>

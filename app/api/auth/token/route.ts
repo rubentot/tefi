@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+// Optional: import jwt from 'jsonwebtoken'; // For signature verification (npm install jsonwebtoken)
 
 export async function POST(request: NextRequest) {
   console.log("🚀 Token API route called")
@@ -7,9 +8,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log("📝 Request body:", body)
 
-    const { code, state } = body
+    const { code, state, redirect_uri } = body
 
-    if (!code || !state) {
+    if (!code || !state || !redirect_uri) {
       console.log("❌ Missing code or state")
       return NextResponse.json(
         {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     const tokenParams = new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
+      redirect_uri, // Use the dynamic one
       client_id: "sandbox-smoggy-shirt-166",
       client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
     })
@@ -109,57 +110,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("🔄 Getting user info...")
-
-    // Get user info
-    const userResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/userinfo", {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-        Accept: "application/json",
-      },
-    })
-
-    console.log("📥 User response status:", userResponse.status)
-
-    const userText = await userResponse.text()
-    console.log("📥 User response text:", userText)
-
-    if (!userResponse.ok) {
+    if (!tokenData.id_token) {
       return NextResponse.json(
         {
           success: false,
-          error: "User info failed",
-          details: `Status: ${userResponse.status}, Response: ${userText}`,
+          error: "No ID token",
+          details: JSON.stringify(tokenData),
         },
         { status: 500 },
       )
     }
 
-    let userInfo
+    console.log("🔄 Parsing user info from ID token...")
+
+    // Decode ID token payload (base64url decode the middle part)
+    const idTokenParts = tokenData.id_token.split('.');
+    if (idTokenParts.length !== 3) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid ID token format",
+        },
+        { status: 500 },
+      )
+    }
+
+    let idTokenPayload;
     try {
-      userInfo = JSON.parse(userText)
-      console.log("✅ User info parsed:", userInfo)
+      // Base64 decode and parse JSON
+      idTokenPayload = JSON.parse(atob(idTokenParts[1]));
+      console.log("✅ ID token payload parsed:", idTokenPayload);
     } catch (parseError) {
-      console.log("❌ User JSON parse error:", parseError)
+      console.log("❌ ID token parse error:", parseError);
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid user JSON",
-          details: userText.substring(0, 500),
+          error: "Invalid ID token payload",
         },
         { status: 500 },
       )
     }
 
-    // Create session data
+    // Optional: Verify signature (uncomment and configure JWKS)
+    // const jwksUrl = 'https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration';
+    // // Fetch JWKS keys dynamically, then: jwt.verify(tokenData.id_token, key, { algorithms: ['RS256'] });
+
+    // Create session data from ID token claims
     const sessionData = {
       role,
       user: {
-        id: userInfo.sub || "unknown",
-        name: `${userInfo.given_name || ""} ${userInfo.family_name || ""}`.trim() || "Unknown User",
-        email: userInfo.email || "",
-        phone: userInfo.phone_number || "",
-        socialNumber: userInfo.sub || "",
+        id: idTokenPayload.sub || "unknown",
+        name: `${idTokenPayload.given_name || ""} ${idTokenPayload.family_name || ""}`.trim() || "Unknown User",
+        email: idTokenPayload.email || "",
+        phone: idTokenPayload.phone_number || "",
+        socialNumber: idTokenPayload.sub || "",
       },
       accessToken: tokenData.access_token,
       loginTime: Date.now(),
