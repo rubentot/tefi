@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { writeFile, unlink } from "fs/promises"
 import path from "path"
 import { v4 as uuidv4 } from "uuid"
-import pdfParse from "pdf-parse"
 import { createWorker } from "tesseract.js"
+import { extractText, getDocumentProxy } from "@unjs/unpdf"
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -31,8 +31,9 @@ export async function POST(req: NextRequest) {
 
     if (file.name.toLowerCase().endsWith(".pdf")) {
       console.log("📄 Processing PDF file...")
-      const parsed = await pdfParse(buffer)
-      extractedText = parsed.text
+      const pdf = await getDocumentProxy(new Uint8Array(buffer))
+      const { text } = await extractText(pdf, { mergePages: true })
+      extractedText = text
     } else {
       console.log("🖼️ Processing image file with OCR...")
       const worker = await createWorker("nor", "eng")
