@@ -1,189 +1,83 @@
-import { type NextRequest, NextResponse } from "next/server"
-// Optional: import jwt from 'jsonwebtoken'; // For signature verification (npm install jsonwebtoken)
+import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken"; // For decoding id_token (use verify for production)
 
-export async function POST(request: NextRequest) {
-  console.log("🚀 Token API route called")
-
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
-    console.log("📝 Request body:", body)
+    const { code, state, redirect_uri, code_verifier } = await req.json();
 
-    const { code, state, redirect_uri } = body
-
-    if (!code || !state || !redirect_uri) {
-      console.log("❌ Missing code or state")
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Missing code or state parameter",
-        },
-        { status: 400 },
-      )
+    if (!code || !state || !redirect_uri || !code_verifier) {
+      return NextResponse.json({ error: "Missing required parameters (PKCE code_verifier is mandatory as of 2025)" }, { status: 400 });
     }
 
-    // Extract role from state
-    const [, role] = state.split("_")
-    if (!role || !["bidder", "broker"].includes(role)) {
-      console.log("❌ Invalid role:", role)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid role in state parameter",
-        },
-        { status: 400 },
-      )
+
+    const discoveryUrl = 'https://auth.bankid.no/auth/realms/prod/.well-known/openid-configuration'; // Or test version
+const configRes = await fetch(discoveryUrl);
+const config = await configRes.json();
+const tokenEndpoint = config.token_endpoint;
+    // Extract role from state (for session)
+    const [, role] = state.split("_");
+
+    // BankID token exchange
+    const clientId = process.env.BANKID_CLIENT_ID;
+    const clientSecret = process.env.BANKID_CLIENT_SECRET;
+    // Token endpoint should ideally be fetched from .well-known/openid-configuration
+    // Example: await fetch('https://auth.bankid.no/.well-known/openid-configuration').then(res => res.json()).then(config => config.token_endpoint)
+    const tokenEndpoint = process.env.BANKID_TOKEN_ENDPOINT;
+
+    if (!clientId || !clientSecret || !tokenEndpoint) {
+      throw new Error("Missing BankID env vars");
     }
 
-    console.log("🔄 Exchanging code for token...")
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-    // Token exchange
-    const tokenParams = new URLSearchParams({
+    const formData = new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri, // Use the dynamic one
-      client_id: "sandbox-smoggy-shirt-166",
-      client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-    })
+      redirect_uri,
+      code_verifier, // Mandatory for PKCE compliance in 2025
+    });
 
-    console.log("📤 Token request params:", tokenParams.toString())
-
-    const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
+    const response = await fetch(tokenEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
+        Authorization: `Basic ${basicAuth}`,
       },
-      body: tokenParams,
-    })
+      body: formData,
+    });
 
-    console.log("📥 Token response status:", tokenResponse.status)
-    console.log("📥 Token response headers:", Object.fromEntries(tokenResponse.headers.entries()))
-
-    const tokenText = await tokenResponse.text()
-    console.log("📥 Token response text:", tokenText)
-
-    if (!tokenResponse.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Token exchange failed",
-          details: `Status: ${tokenResponse.status}, Response: ${tokenText}`,
-        },
-        { status: 500 },
-      )
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`BankID token exchange failed: ${response.status} - ${errorText}`);
     }
 
-    if (!tokenText || tokenText.trim() === "") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Empty token response",
-        },
-        { status: 500 },
-      )
+    const tokens = await response.json();
+
+    // Decode and verify id_token (add JWKS validation in prod)
+    // Example: Use jwks-rsa to fetch keys and jwt.verify(tokens.id_token, key, { algorithms: ['RS256'] })
+    const decodedIdToken = jwt.decode(tokens.id_token) as any;
+
+    if (!decodedIdToken) {
+      throw new Error("Invalid id_token");
     }
 
-    let tokenData
-    try {
-      tokenData = JSON.parse(tokenText)
-      console.log("✅ Token data parsed:", tokenData)
-    } catch (parseError) {
-      console.log("❌ Token JSON parse error:", parseError)
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid token JSON",
-          details: tokenText.substring(0, 500),
-        },
-        { status: 500 },
-      )
-    }
-
-    if (!tokenData.access_token) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No access token",
-          details: JSON.stringify(tokenData),
-        },
-        { status: 500 },
-      )
-    }
-
-    if (!tokenData.id_token) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No ID token",
-          details: JSON.stringify(tokenData),
-        },
-        { status: 500 },
-      )
-    }
-
-    console.log("🔄 Parsing user info from ID token...")
-
-    // Decode ID token payload (base64url decode the middle part)
-    const idTokenParts = tokenData.id_token.split('.');
-    if (idTokenParts.length !== 3) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid ID token format",
-        },
-        { status: 500 },
-      )
-    }
-
-    let idTokenPayload;
-    try {
-      // Base64 decode and parse JSON
-      idTokenPayload = JSON.parse(atob(idTokenParts[1]));
-      console.log("✅ ID token payload parsed:", idTokenPayload);
-    } catch (parseError) {
-      console.log("❌ ID token parse error:", parseError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid ID token payload",
-        },
-        { status: 500 },
-      )
-    }
-
-    // Optional: Verify signature (uncomment and configure JWKS)
-    // const jwksUrl = 'https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration';
-    // // Fetch JWKS keys dynamically, then: jwt.verify(tokenData.id_token, key, { algorithms: ['RS256'] });
-
-    // Create session data from ID token claims
+    // Build session data with updated claims (BankID uses 'norwegian_nin' for fødselsnummer)
     const sessionData = {
       role,
       user: {
-        id: idTokenPayload.sub || "unknown",
-        name: `${idTokenPayload.given_name || ""} ${idTokenPayload.family_name || ""}`.trim() || "Unknown User",
-        email: idTokenPayload.email || "",
-        phone: idTokenPayload.phone_number || "",
-        socialNumber: idTokenPayload.sub || "",
+        id: decodedIdToken.sub,
+        name: decodedIdToken.name || `${decodedIdToken.given_name} ${decodedIdToken.family_name}`,
+        email: decodedIdToken.email,
+        phone: decodedIdToken.phone_number,
+        socialNumber: decodedIdToken.norwegian_nin || decodedIdToken.birthnumber, // Updated to preferred claim
       },
-      accessToken: tokenData.access_token,
+      accessToken: tokens.access_token,
       loginTime: Date.now(),
-    }
+    };
 
-    console.log("✅ Session data created:", sessionData)
-
-    return NextResponse.json({
-      success: true,
-      sessionData,
-    })
-  } catch (error: any) {
-    console.error("💥 API route error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Internal server error",
-        details: error.message,
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ sessionData });
+  } catch (err: any) {
+    console.error("Token API error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

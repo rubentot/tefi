@@ -1,86 +1,89 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Shield, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Shield, Loader2 } from "lucide-react";
 
 export default function AuthCallbackPage() {
-  const [isProcessing, setIsProcessing] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [debugInfo, setDebugInfo] = useState<string>("")
+  const [isProcessing, setIsProcessing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
-useEffect(() => {
-  const handleAuthCallback = async () => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
-      const state = urlParams.get("state");
-      const error_param = urlParams.get("error");
-      const error_description = urlParams.get("error_description");
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get("code");
+        const state = urlParams.get("state");
+        const error_param = urlParams.get("error");
+        const error_description = urlParams.get("error_description");
 
-      console.log("🔁 Auth callback - Code:", code?.substring(0, 10) + "...", "State:", state);
+        console.log("🔁 Auth callback - Code:", code?.substring(0, 10) + "...", "State:", state);
 
-      if (error_param) {
-        throw new Error(`OAuth Error: ${error_param} - ${error_description || "Unknown error"}`);
-      }
-
-      if (!code || !state) {
-        throw new Error("Mangler autorisasjonskode eller state parameter");
-      }
-
-      // Extract role from state
-      const [, role] = state.split("_");
-      if (!role || !["bidder", "broker"].includes(role)) {
-        throw new Error("Ugyldig rolle i state parameter");
-      }
-
-      setDebugInfo("Utveksler autorisasjonskode via server...");
-
-      const redirectUri = `${window.location.origin}/auth/callback`;
-
-      const tokenResponse = await fetch("/api/auth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code, state, redirect_uri: redirectUri }),
-      });
-
-      console.log("🔐 Token response status:", tokenResponse.status);
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`);
-      }
-
-      const tokenData = await tokenResponse.json();
-
-      if (!tokenData.sessionData) {
-        throw new Error("No session data returned from server");
-      }
-
-      // Store session and redirect (as before)
-      localStorage.setItem("bankid_session", JSON.stringify(tokenData.sessionData));
-
-      setDebugInfo(`Omdirigerer til ${role} dashboard...`);
-
-      setTimeout(() => {
-        if (role === "bidder") {
-          window.location.href = "/eiendom/3837340";
-        } else if (role === "broker") {
-          window.location.href = "/verifiser";
+        if (error_param) {
+          throw new Error(`OAuth Error: ${error_param} - ${error_description || "Unknown error"}`);
         }
-      }, 1500);
-    } catch (err: any) {
-      console.error("Auth callback error:", err);
-      setError(err.message || "En ukjent feil oppstod");
-      setDebugInfo(`Feil: ${err.message}`);
-      setIsProcessing(false);
-    }
-  };
 
-  handleAuthCallback();
-}, []);
+        if (!code || !state) {
+          throw new Error("Mangler autorisasjonskode eller state parameter");
+        }
+
+        // Extract role from state (assuming format like "randomstate_bidder")
+        const [, role] = state.split("_");
+        if (!role || !["bidder", "broker"].includes(role)) {
+          throw new Error("Ugyldig rolle i state parameter");
+        }
+
+        setDebugInfo("Utveksler autorisasjonskode via server...");
+
+        const redirectUri = `${window.location.origin}/auth/callback`;
+
+        const tokenResponse = await fetch("/api/auth/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ code, state, redirect_uri: redirectUri }),
+        });
+
+        console.log("🔐 Token response status:", tokenResponse.status);
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`);
+        }
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.sessionData) {
+          throw new Error("No session data returned from server");
+        }
+
+        // Store session
+        localStorage.setItem("bankid_session", JSON.stringify(tokenData.sessionData));
+
+        setDebugInfo(`Omdirigerer til ${role} dashboard...`);
+
+        setTimeout(() => {
+          // Role-based redirect (your current setup)
+          if (role === "bidder") {
+            window.location.href = "/eiendom/3837340";
+          } else if (role === "broker") {
+            window.location.href = "/verifiser";
+          }
+          // Alternative: Unified dashboard (uncomment if preferred)
+          // window.location.href = "/dashboard";
+        }, 1500);
+      } catch (err: any) {
+        console.error("Auth callback error:", err);
+        setError(err.message || "En ukjent feil oppstod");
+        setDebugInfo(`Feil: ${err.message}`);
+        setIsProcessing(false);
+      }
+    };
+
+    handleAuthCallback();
+  }, []);
 
   if (error) {
     return (
@@ -110,12 +113,13 @@ useEffect(() => {
                 onClick={() => (window.location.href = "/")}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
               >
+                Prøv igjen
               </button>
             </div>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -137,5 +141,5 @@ useEffect(() => {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

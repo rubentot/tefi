@@ -1,3 +1,7 @@
+// next.config.js
+
+const webpack = require("webpack")
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -11,15 +15,15 @@ const nextConfig = {
   },
   webpack(config, { isServer }) {
     if (isServer) {
-      config.externals.push(({ request }, callback) => {
-        if (request?.includes("pdf-parse/test")) {
-          return callback(null, "commonjs " + request)
-        }
-        callback()
-      })
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /pdf-parse\/test/,
+        })
+      )
     }
     return config
   },
 }
 
-export default nextConfig
+module.exports = nextConfig
+
