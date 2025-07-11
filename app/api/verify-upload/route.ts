@@ -4,6 +4,7 @@ import path from "path"
 import { v4 as uuidv4 } from "uuid"
 import { createWorker } from "tesseract.js"
 import { extractText, getDocumentProxy } from "unpdf"
+import { addProof } from "@/lib/mockBank"; // New import
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -68,6 +69,8 @@ export async function POST(req: NextRequest) {
     })
 
     if (nameMatch && amountMatch) {
+      // Mock userId; in real, get from session/auth header
+      await addProof('mock-user-id-from-session', parseFloat(expectedAmount)); // New: Store proof
       return NextResponse.json({
         success: true,
         message: "Finansieringsbevis er verifisert og stemmer overens med oppgitt informasjon.",
