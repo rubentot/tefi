@@ -3,7 +3,7 @@ import { writeFile, unlink } from "fs/promises"
 import path from "path"
 import { v4 as uuidv4 } from "uuid"
 import { createWorker } from "tesseract.js"
-import { extractText, getDocumentProxy } from "@unjs/unpdf"
+import { extractText, getDocumentProxy } from "unpdf"
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
