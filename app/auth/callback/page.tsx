@@ -38,35 +38,36 @@ export default function AuthCallbackPage() {
         setDebugInfo("Utveksler autorisasjonskode direkte...")
 
         // Exchange code for token directly (simplified approach)
-        const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
-            client_id: "sandbox-smoggy-shirt-166",
-            client_secret: "5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd",
-          }),
-        })
+        // ... (existing code)
+
+const tokenResponse = await fetch("https://tefi.sandbox.signicat.com/auth/open/connect/token", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Authorization": `Basic ${btoa("sandbox-smoggy-shirt-166:5519WKMzSHZopB8Hd8HhANTZ0BgZe18aFzVk2CDuDv1odiWd")}`,
+  },
+  body: new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: "https://tefi-git-main-tottermancrypto-5092s-projects.vercel.app/auth/callback",
+  }),
+});
+
+// ... (rest of the code remains the same)
 
         console.log("🔐 Token response status:", tokenResponse.status)
 
-      let tokenData: any
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text()
+          throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`)
+        }
 
-try {
-  tokenData = await tokenResponse.json()
-} catch (e) {
-  const rawBody = await tokenResponse.text()
-  throw new Error(`Token response was not valid JSON: ${tokenResponse.status} - ${rawBody}`)
-}
+        const tokenData = await tokenResponse.json()
+        console.log("🔐 Token data received")
 
-if (!tokenResponse.ok) {
-  throw new Error(`Token exchange failed: ${tokenResponse.status} - ${JSON.stringify(tokenData)}`)
-}
-
+        if (!tokenData.access_token) {
+          throw new Error("No access token received")
+        }
 
         setDebugInfo("Henter brukerinformasjon...")
 
