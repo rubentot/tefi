@@ -38,12 +38,15 @@ export default function AuthCallbackPage() {
 
         const redirectUri = `${window.location.origin}/auth/callback`;
 
+        const codeVerifier = localStorage.getItem("code_verifier");
+        if (!codeVerifier) throw new Error("Missing PKCE code_verifier");
+
         const tokenResponse = await fetch("/api/auth/token", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ code, state, redirect_uri: redirectUri }),
+          body: JSON.stringify({ code, state, redirect_uri: redirectUri, code_verifier: codeVerifier }),
         });
 
         console.log("🔐 Token response status:", tokenResponse.status);

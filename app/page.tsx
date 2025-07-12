@@ -8,26 +8,32 @@ import { Shield, User, Building, CheckCircle, ArrowRight } from "lucide-react"
 export default function HomePage() {
   const [selectedRole, setSelectedRole] = useState<"bidder" | "broker" | null>(null)
 
-  const handleBankIdLogin = (role: "bidder" | "broker") => {
-    const clientId = "sandbox-smoggy-shirt-166"
+  
 
-    // Dynamic redirect URI based on current origin
-    const redirectUri = `${window.location.origin}/auth/callback`
+ const handleBankIdLogin = async (role: "bidder" | "broker") => {
+  const clientId = "sandbox-smoggy-shirt-166";
+  const redirectUri = `${window.location.origin}/auth/callback`;
+  const scope = "openid profile";
+  const responseType = "code";
+  const acr = "urn:signicat:oidc:method:nbid";
+  const prompt = "login";
+  const state = `${crypto.randomUUID()}_${role}`;
 
-    const scope = "openid profile"
-    const responseType = "code"
-    const acr = "urn:signicat:oidc:method:nbid"
-    const prompt = "login"
-    const state = `${crypto.randomUUID()}_${role}`
+  // PKCE
+  const codeVerifier = crypto.randomUUID() + crypto.randomUUID(); // Simple random string
+  localStorage.setItem("code_verifier", codeVerifier);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 
-    console.log("🔗 Redirect URI:", redirectUri) // For debugging
+  const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
 
-    const authUrl = `https://tefi.sandbox.signicat.com/auth/open/connect/authorize?response_type=${responseType}&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-      redirectUri
-    )}&scope=${scope}&acr_values=${acr}&prompt=${prompt}&state=${state}`
-
-    window.location.href = authUrl
-  }
+  window.location.href = authUrl;
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
