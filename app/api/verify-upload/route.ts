@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       extractedText = text
     } else {
       console.log("🖼️ Processing image file with OCR...")
-      const worker = await createWorker("nor", "eng")
+      const worker = await createWorker('nor+eng');
       const { data } = await worker.recognize(tmpPath)
       extractedText = data.text
       await worker.terminate()
