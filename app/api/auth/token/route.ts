@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
     // Extract role from state
     const [, role] = state.split("_");
 
-    // Dynamically fetch token endpoint
-    const discoveryUrl = 'https://auth.bankid.no/auth/realms/prod/.well-known/openid-configuration'; // Switch to test if needed
+    // Use Signicat sandbox discovery (matches your authUrl)
+    const discoveryUrl = 'https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration';
     const configRes = await fetch(discoveryUrl);
     if (!configRes.ok) throw new Error("Failed to fetch OIDC discovery config");
     const config = await configRes.json();
