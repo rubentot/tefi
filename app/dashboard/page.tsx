@@ -1,3 +1,4 @@
+// app/dashboard/page.tsx (Updated bidder to store bid and generate code; broker to verify and show details if valid)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,10 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, CheckCircle, XCircle } from "lucide-react";
-import { addProof, verifyBid } from "@/lib/mockBank"; // Adjust import if needed
+import { addProof, verifyBid, addBid, verifyReferenceCode } from "@/lib/mockBank";
 
 interface UserSession {
-  role: string; // "bidder" or "broker"
+  role: string;
   user: {
     id: string;
     name: string;
@@ -28,9 +29,9 @@ export default function DashboardPage() {
   const [financingLimit, setFinancingLimit] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
-  const [oneTimeCode, setOneTimeCode] = useState("");
+  const [referenceCode, setReferenceCode] = useState("");
   const [brokerCode, setBrokerCode] = useState("");
-  const [brokerResult, setBrokerResult] = useState<{ valid: boolean } | null>(null);
+  const [brokerResult, setBrokerResult] = useState<{ valid: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
 
   useEffect(() => {
     const sessionData = localStorage.getItem("bankid_session");
@@ -53,9 +54,8 @@ export default function DashboardPage() {
       await addProof(session.user.id, parseFloat(financingLimit));
       const isValid = await verifyBid(session.user.id, parseFloat(bidAmount));
       if (isValid) {
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setOneTimeCode(code);
-        setTimeout(() => setOneTimeCode(""), 5 * 60 * 1000); // Expires in 5 min
+        const code = await addBid(session, parseFloat(bidAmount));
+        setReferenceCode(code);
         setVerificationStatus("success");
       } else {
         setVerificationStatus("error");
@@ -66,24 +66,19 @@ export default function DashboardPage() {
   };
 
   const handleBrokerVerify = async () => {
-    const res = await fetch(`/api/verify-check?code=${brokerCode}`);
-    const data = await res.json();
-    setBrokerResult({ valid: !data.error });
+    const result = await verifyReferenceCode(brokerCode);
+    setBrokerResult(result);
   };
 
   if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <p>Logg inn med BankID for å se dashboardet.</p>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Logg inn for å fortsette...</div>;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
       <Card className="max-w-4xl mx-auto">
         <CardHeader>
-          <CardTitle>Dashboard: {session.user.name} ({session.role})</CardTitle>
+          <CardTitle>Velkommen, {session.user.name} ({session.role})</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue={session.role} className="space-y-6">
@@ -109,7 +104,7 @@ export default function DashboardPage() {
               </Button>
               {verificationStatus === "success" && (
                 <div className="bg-green-50 p-4 rounded-lg flex items-center">
-                  <CheckCircle className="mr-2 text-green-600" /> Verifisert! Engangskode: {oneTimeCode} (gyldig i 5 min)
+                  <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
                 </div>
               )}
               {verificationStatus === "error" && (
@@ -119,13 +114,21 @@ export default function DashboardPage() {
               )}
             </TabsContent>
             <TabsContent value="broker" className="space-y-4">
-              <Label htmlFor="brokerCode">Skriv inn engangskode</Label>
-              <Input id="brokerCode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
+              <Label htmlFor="brokerCode">Skriv inn referansekode</Label>
+              <Input id="brokerCode" placeholder="Skriv inn referansekode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
               <Button onClick={handleBrokerVerify}>Verifiser</Button>
               {brokerResult && (
-                <div className={`p-4 rounded-lg flex items-center ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
+                <div className={`p-4 rounded-lg ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
                   {brokerResult.valid ? <CheckCircle className="mr-2 text-green-600" /> : <XCircle className="mr-2 text-red-600" />}
                   {brokerResult.valid ? 'Gyldig bud' : 'Ugyldig kode'}
+                  {brokerResult.valid && brokerResult.details && (
+                    <div className="mt-2 text-sm">
+                      <p><strong>Navn:</strong> {brokerResult.details.name}</p>
+                      <p><strong>E-post:</strong> {brokerResult.details.email}</p>
+                      <p><strong>Telefon:</strong> {brokerResult.details.phone}</p>
+                      <p><strong>Bankkontakt:</strong> {brokerResult.details.bankContact}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>
