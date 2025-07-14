@@ -1,3 +1,4 @@
+// app/auth/callback/page.tsx (Updated to redirect based on role)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -65,10 +66,10 @@ export default function AuthCallbackPage() {
         // Store session
         localStorage.setItem("bankid_session", JSON.stringify(tokenData.sessionData));
 
-        setDebugInfo(`Omdirigerer til ${role} dashboard...`);
+        setDebugInfo(`Omdirigerer til ${role === 'bidder' ? 'personopplysninger' : 'dashboard'}...`);
 
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          window.location.href = role === 'bidder' ? "/personal-info" : "/dashboard";
         }, 1500);
       } catch (err: any) {
         console.error("Auth callback error:", err);

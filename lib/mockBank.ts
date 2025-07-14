@@ -14,6 +14,7 @@ interface Bid {
   bidAmount: number;
   referenceCode: string;
   expiration: Date;
+  approved?: boolean; // New: Approval status (undefined = pending)
   bidderInfo: {
     name: string;
     email: string;
@@ -57,9 +58,16 @@ export async function addBid(session: any, bidAmount: number): Promise<string> {
   return referenceCode;
 }
 
-export async function verifyReferenceCode(code: string): Promise<{ valid: boolean; details?: Bid['bidderInfo'] }> {
+export async function updateBidApproval(code: string, approved: boolean) {
+  const bidIndex = db.bids.findIndex(b => b.referenceCode === code);
+  if (bidIndex !== -1) {
+    db.bids[bidIndex].approved = approved;
+  }
+}
+
+export async function verifyReferenceCode(code: string): Promise<{ valid: boolean; approved?: boolean; details?: Bid['bidderInfo'] }> {
   const bid = db.bids.find(b => b.referenceCode === code && new Date(b.expiration) > new Date());
   if (!bid) return { valid: false };
   const isValid = await verifyBid(bid.userId, bid.bidAmount);
-  return { valid: isValid, details: isValid ? bid.bidderInfo : undefined };
+  return { valid: isValid, approved: bid.approved, details: isValid ? bid.bidderInfo : undefined };
 }

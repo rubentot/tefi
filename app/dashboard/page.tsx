@@ -1,14 +1,14 @@
-// app/dashboard/page.tsx (Updated bidder to store bid and generate code; broker to verify and show details if valid)
 "use client";
 
 import { useEffect, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, CheckCircle, XCircle } from "lucide-react";
-import { addProof, verifyBid, addBid, verifyReferenceCode } from "@/lib/mockBank";
+import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { addBid, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
 
 interface UserSession {
   role: string;
@@ -26,12 +26,12 @@ interface UserSession {
 export default function DashboardPage() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [bidAmount, setBidAmount] = useState("");
-  const [financingLimit, setFinancingLimit] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
   const [referenceCode, setReferenceCode] = useState("");
   const [brokerCode, setBrokerCode] = useState("");
-  const [brokerResult, setBrokerResult] = useState<{ valid: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
+  const [brokerResult, setBrokerResult] = useState<{ valid: boolean; approved?: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const sessionData = localStorage.getItem("bankid_session");
@@ -39,27 +39,20 @@ export default function DashboardPage() {
   }, []);
 
   const handleVerifyAndBid = async () => {
-    if (!file || !session || !bidAmount || !financingLimit) return;
+    if (!file || !session || !bidAmount) return;
     setVerificationStatus("verifying");
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
-    formData.append("expectedAmount", financingLimit);
 
     const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
     const verifyData = await verifyRes.json();
 
     if (verifyData.success) {
-      await addProof(session.user.id, parseFloat(financingLimit));
-      const isValid = await verifyBid(session.user.id, parseFloat(bidAmount));
-      if (isValid) {
-        const code = await addBid(session, parseFloat(bidAmount));
-        setReferenceCode(code);
-        setVerificationStatus("success");
-      } else {
-        setVerificationStatus("error");
-      }
+      const code = await addBid(session, parseFloat(bidAmount));
+      setReferenceCode(code);
+      setVerificationStatus("success");
     } else {
       setVerificationStatus("error");
     }
@@ -70,71 +63,100 @@ export default function DashboardPage() {
     setBrokerResult(result);
   };
 
+  const handleApprove = async (code: string, approved: boolean) => {
+    await updateBidApproval(code, approved);
+    setBrokerResult(prev => prev ? { ...prev, approved } : null);
+  };
+
   if (!session) {
     return <div className="min-h-screen flex items-center justify-center">Logg inn for å fortsette...</div>;
   }
 
+  const uploadInstructions = isMobile 
+    ? "På mobil: Ta skjermbilde i bank-appen og last opp, eller lagre e-post som PDF via 'Del' > 'Lagre som PDF'."
+    : "Last ned fra bankens portal/e-post som PDF. Hvis i app: Skriv ut til PDF eller ta skjermbilde og konverter.";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle>Velkommen, {session.user.name} ({session.role})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue={session.role} className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="bidder">Budgiver</TabsTrigger>
-              <TabsTrigger value="broker">Megler</TabsTrigger>
-            </TabsList>
-            <TabsContent value="bidder" className="space-y-6">
-              <div>
-                <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
-                <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="financingLimit">Forhåndsgodkjent låneramme (kr)</Label>
-                <Input id="financingLimit" type="number" value={financingLimit} onChange={(e) => setFinancingLimit(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="file">Last opp finansieringsbevis (PDF/bilde)</Label>
-                <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-              </div>
-              <Button onClick={handleVerifyAndBid} disabled={verificationStatus === "verifying"}>
-                <Upload className="mr-2 h-4 w-4" /> Verifiser og send bud
-              </Button>
-              {verificationStatus === "success" && (
-                <div className="bg-green-50 p-4 rounded-lg flex items-center">
-                  <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
+        <Card className="max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle>Velkommen, {session.user.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {session.role === "bidder" ? (
+              <>
+                <div>
+                  <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
+                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
                 </div>
-              )}
-              {verificationStatus === "error" && (
-                <div className="bg-red-50 p-4 rounded-lg flex items-center">
-                  <XCircle className="mr-2 text-red-600" /> Verifisering feilet. Prøv igjen.
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="broker" className="space-y-4">
-              <Label htmlFor="brokerCode">Skriv inn referansekode</Label>
-              <Input id="brokerCode" placeholder="Skriv inn referansekode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
-              <Button onClick={handleBrokerVerify}>Verifiser</Button>
-              {brokerResult && (
-                <div className={`p-4 rounded-lg ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
-                  {brokerResult.valid ? <CheckCircle className="mr-2 text-green-600" /> : <XCircle className="mr-2 text-red-600" />}
-                  {brokerResult.valid ? 'Gyldig bud' : 'Ugyldig kode'}
-                  {brokerResult.valid && brokerResult.details && (
-                    <div className="mt-2 text-sm">
-                      <p><strong>Navn:</strong> {brokerResult.details.name}</p>
-                      <p><strong>E-post:</strong> {brokerResult.details.email}</p>
-                      <p><strong>Telefon:</strong> {brokerResult.details.phone}</p>
-                      <p><strong>Bankkontakt:</strong> {brokerResult.details.bankContact}</p>
-                    </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="file">Last opp finansieringsbevis (PDF/bilde)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>{uploadInstructions}</p>
+                        <p className="mt-2">Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                  {verificationStatus === "error" && (
+                    <p className="text-sm text-muted-foreground mt-2">Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.</p>
                   )}
                 </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+                <Button onClick={handleVerifyAndBid} disabled={verificationStatus === "verifying"}>
+                  <Upload className="mr-2 h-4 w-4" /> Verifiser og send bud
+                </Button>
+                {verificationStatus === "success" && (
+                  <div className="bg-green-50 p-4 rounded-lg flex items-center">
+                    <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
+                  </div>
+                )}
+                {verificationStatus === "error" && (
+                  <div className="bg-red-50 p-4 rounded-lg flex items-center">
+                    <XCircle className="mr-2 text-red-600" /> Verifisering feilet. Prøv igjen.
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <Label htmlFor="brokerCode">Skriv inn referansekode</Label>
+                <Input id="brokerCode" placeholder="Skriv inn referansekode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
+                <Button onClick={handleBrokerVerify}>Verifiser</Button>
+                {brokerResult && (
+                  <div className={`p-4 rounded-lg ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
+                    {brokerResult.valid ? <CheckCircle className="mr-2 text-green-600" /> : <XCircle className="mr-2 text-red-600" />}
+                    {brokerResult.valid ? 'Gyldig bud' : 'Ugyldig kode'}
+                    {brokerResult.valid && brokerResult.details && (
+                      <div className="mt-2 text-sm">
+                        <p><strong>Navn:</strong> {brokerResult.details.name}</p>
+                        <p><strong>E-post:</strong> {brokerResult.details.email}</p>
+                        <p><strong>Telefon:</strong> {brokerResult.details.phone}</p>
+                        <p><strong>Bankkontakt:</strong> {brokerResult.details.bankContact}</p>
+                        <div className="mt-4 flex gap-4">
+                          <Button variant="default" onClick={() => handleApprove(brokerCode, true)}>
+                            Godkjenn
+                          </Button>
+                          <Button variant="destructive" onClick={() => handleApprove(brokerCode, false)}>
+                            Avvis
+                          </Button>
+                        </div>
+                        {brokerResult.approved !== undefined && (
+                          <p className="mt-2"><strong>Status:</strong> {brokerResult.approved ? 'Godkjent' : 'Avvist'}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </TooltipProvider>
   );
 }
