@@ -4,20 +4,20 @@ import path from "path"
 import { v4 as uuidv4 } from "uuid"
 import { createWorker } from "tesseract.js"
 import { extractText, getDocumentProxy } from "unpdf"
-import { addProof } from "@/lib/mockBank"; // New import
+import { addProof } from "@/lib/mockBank"; // For storing extracted limit
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get("file") as File
   const expectedName = formData.get("expectedName") as string
-  const expectedAmount = formData.get("expectedAmount") as string
+  const bidAmount = parseFloat(formData.get("bidAmount") as string) // New: Send bid from frontend for comparison
 
-  if (!file) {
-    return NextResponse.json({ success: false, message: "Ingen fil mottatt" }, { status: 400 })
+  if (!file || isNaN(bidAmount)) {
+    return NextResponse.json({ success: false, message: "Ingen fil eller budbeløp mottatt" }, { status: 400 })
   }
 
-  if (!expectedName || !expectedAmount) {
-    return NextResponse.json({ success: false, message: "Mangler forventet navn eller beløp" }, { status: 400 })
+  if (!expectedName) {
+    return NextResponse.json({ success: false, message: "Mangler forventet navn" }, { status: 400 })
   }
 
   try {
@@ -49,55 +49,51 @@ export async function POST(req: NextRequest) {
 
     // Clean and normalize text for better matching
     const normalizedText = extractedText.toLowerCase().replace(/\s+/g, " ")
-    const normalizedName = expectedName.toLowerCase().replace(/\s+/g, " ")
 
-    // Check for name match (more flexible matching)
-    const nameWords = normalizedName.split(" ")
+    // Name match
+    const nameWords = expectedName.toLowerCase().replace(/\s+/g, " ").split(" ")
     const nameMatch = nameWords.every((word) => normalizedText.includes(word))
 
-    // Check for amount match (extract all numbers and look for the amount)
-    const numbersInText = extractedText.replace(/\D/g, "")
-    const expectedAmountStr = expectedAmount.replace(/\D/g, "")
-    const amountMatch = numbersInText.includes(expectedAmountStr)
+    // Extract loan amount (look for keywords like "godkjent beløp", "låneramme", "finansieringsbevis for kr")
+    const loanKeywords = ["godkjent lånebeløp", "låneramme", "finansieringsbevis for", "beløp kr", "maksimalt lån"];
+    let extractedLoan = 0;
+    for (const keyword of loanKeywords) {
+      const regex = new RegExp(`${keyword}\\s*([\\d\\s.,]+)`, "i");
+      const match = extractedText.match(regex);
+      if (match) {
+        const amountStr = match[1].replace(/\D/g, ""); // Strip non-digits
+        extractedLoan = parseFloat(amountStr);
+        if (!isNaN(extractedLoan)) break;
+      }
+    }
+
+    const sufficiencyMatch = extractedLoan >= bidAmount;
 
     console.log("🔍 Verification results:", {
       nameMatch,
-      amountMatch,
-      expectedName,
-      expectedAmount: expectedAmountStr,
-      foundNumbers: numbersInText.substring(0, 100),
+      extractedLoan,
+      sufficiencyMatch,
+      bidAmount,
     })
 
-    if (nameMatch && amountMatch) {
-      // Mock userId; in real, get from session/auth header
-      await addProof('mock-user-id-from-session', parseFloat(expectedAmount)); // New: Store proof
+    if (nameMatch && sufficiencyMatch) {
+      // Mock userId; in real, from session
+      await addProof('mock-user-id-from-session', extractedLoan); // Store extracted limit for later verifyBid
       return NextResponse.json({
         success: true,
-        message: "Finansieringsbevis er verifisert og stemmer overens med oppgitt informasjon.",
+        message: "Finansieringsbevis er verifisert. Lånebeløp er tilstrekkelig.",
       })
     } else {
-      let errorMessage = "Verifisering feilet: "
-      if (!nameMatch && !amountMatch) {
-        errorMessage += "Verken navn eller beløp stemmer med det som ble sendt inn."
-      } else if (!nameMatch) {
-        errorMessage += "Navnet stemmer ikke med det som ble sendt inn."
-      } else {
-        errorMessage += "Beløpet stemmer ikke med det som ble sendt inn."
-      }
-
-      return NextResponse.json({
-        success: false,
-        message: errorMessage,
-      })
+      let errorMessage = "Verifisering feilet: ";
+      if (!nameMatch) errorMessage += "Navnet stemmer ikke. ";
+      if (!sufficiencyMatch) errorMessage += "Lånebeløp er ikke tilstrekkelig for budet.";
+      return NextResponse.json({ success: false, message: errorMessage })
     }
   } catch (err: any) {
     console.error("⛔ Error during file processing:", err)
     return NextResponse.json(
-      {
-        success: false,
-        message: "Feil under behandling av fil. Prøv igjen eller kontakt support.",
-      },
-      { status: 500 },
+      { success: false, message: "Feil under behandling av fil. Prøv igjen eller kontakt support." },
+      { status: 500 }
     )
   }
 }
