@@ -1,4 +1,3 @@
-// lib/mockBank.ts (Updated to use in-memory storage instead of fs)
 import { v4 as uuidv4 } from 'uuid';
 
 interface FinancingProof {
@@ -14,7 +13,7 @@ interface Bid {
   bidAmount: number;
   referenceCode: string;
   expiration: Date;
-  approved?: boolean; // New: Approval status (undefined = pending)
+  approved?: boolean;
   bidderInfo: {
     name: string;
     email: string;
@@ -23,7 +22,6 @@ interface Bid {
   };
 }
 
-// In-memory DB (resets on server restart, fine for mock/dev)
 let db: { proofs: FinancingProof[]; bids: Bid[] } = { proofs: [], bids: [] };
 
 export async function addProof(userId: string, limit: number): Promise<string> {

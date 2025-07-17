@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addBid, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
+import { supabaseClient } from '@/lib/supabase-client';
 
 interface UserSession {
   role: string;
@@ -24,6 +26,7 @@ interface UserSession {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
   const [bidAmount, setBidAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -37,6 +40,39 @@ export default function DashboardPage() {
     const sessionData = localStorage.getItem("bankid_session");
     if (sessionData) setSession(JSON.parse(sessionData));
   }, []);
+
+  // ... your existing code ...
+
+useEffect(() => {
+  const sessionData = localStorage.getItem("bankid_session");
+  if (sessionData) {
+    setSession(JSON.parse(sessionData));
+  } else {
+    const checkSupabaseSession = async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session && session.user.user_metadata.role === "broker") {
+        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
+        const mockSession = {
+          role: "broker",
+          user: {
+            id: session.user.id,
+            name: profile?.name || session.user.email,
+            email: session.user.email,
+            phone: profile?.phone || "",
+            socialNumber: profile?.social_number || "",
+          },
+          accessToken: session.access_token,
+          loginTime: Date.now(),
+        };
+        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+        setSession(mockSession);
+      } else {
+        router.push("/");
+      }
+    };
+    checkSupabaseSession();
+  }
+}, [router]);
 
   const handleVerifyAndBid = async () => {
     if (!file || !session || !bidAmount) return;

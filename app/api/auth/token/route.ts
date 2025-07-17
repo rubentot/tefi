@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+const supabase = createSupabaseServerClient();
+
 
 export async function POST(req: NextRequest) {
   try {
