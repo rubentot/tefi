@@ -1,3 +1,4 @@
+// /app/dashboard/page.tsx (updated import for client-side useEffect)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,7 +11,7 @@ import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addBid, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
-import { supabaseClient } from '@/lib/supabase-client';
+import { supabaseClient } from "@/lib/supabase-client";
 
 interface UserSession {
   role: string;
@@ -38,41 +39,34 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const sessionData = localStorage.getItem("bankid_session");
-    if (sessionData) setSession(JSON.parse(sessionData));
-  }, []);
-
-  // ... your existing code ...
-
-useEffect(() => {
-  const sessionData = localStorage.getItem("bankid_session");
-  if (sessionData) {
-    setSession(JSON.parse(sessionData));
-  } else {
-    const checkSupabaseSession = async () => {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session && session.user.user_metadata.role === "broker") {
-        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
-        const mockSession = {
-          role: "broker",
-          user: {
-            id: session.user.id,
-            name: profile?.name || session.user.email,
-            email: session.user.email,
-            phone: profile?.phone || "",
-            socialNumber: profile?.social_number || "",
-          },
-          accessToken: session.access_token,
-          loginTime: Date.now(),
-        };
-        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-        setSession(mockSession);
-      } else {
-        router.push("/");
-      }
-    };
-    checkSupabaseSession();
-  }
-}, [router]);
+    if (sessionData) {
+      setSession(JSON.parse(sessionData));
+    } else {
+      const checkSupabaseSession = async () => {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session && session.user.user_metadata.role === "broker") {
+          const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
+          const mockSession = {
+            role: "broker",
+            user: {
+              id: session.user.id,
+              name: profile?.name || session.user.email,
+              email: session.user.email,
+              phone: profile?.phone || "",
+              socialNumber: profile?.social_number || "",
+            },
+            accessToken: session.access_token,
+            loginTime: Date.now(),
+          };
+          localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+          setSession(mockSession);
+        } else {
+          router.push("/");
+        }
+      };
+      checkSupabaseSession();
+    }
+  }, [router]);
 
   const handleVerifyAndBid = async () => {
     if (!file || !session || !bidAmount) return;
