@@ -1,4 +1,3 @@
-// /app/dashboard/page.tsx (updated import for client-side useEffect)
 "use client";
 
 import { useEffect, useState } from "react";
@@ -50,8 +49,8 @@ export default function DashboardPage() {
             role: "broker",
             user: {
               id: session.user.id,
-              name: profile?.name || session.user.email,
-              email: session.user.email,
+              name: profile?.name || (session.user.email ?? "Unknown"),  // Ensure 'name' is always a string; fallback to email (now guaranteed string) or a default
+              email: session.user.email ?? "",  // Fallback to empty string if undefined, resolving the 'string | undefined' mismatch
               phone: profile?.phone || "",
               socialNumber: profile?.social_number || "",
             },
@@ -118,7 +117,7 @@ export default function DashboardPage() {
               <>
                 <div>
                   <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
-                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
+                  <Input id="number" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">

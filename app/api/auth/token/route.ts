@@ -1,24 +1,30 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { createSupabaseServerClient } from '@/lib/supabase-server';
-const supabase = createSupabaseServerClient();
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
+const supabase = createSupabaseServerClient();
 
 export async function POST(req: NextRequest) {
   try {
     const { code, state, redirect_uri, code_verifier } = await req.json();
 
     if (!code || !state || !redirect_uri || !code_verifier) {
-      return NextResponse.json({ error: "Missing required parameters (PKCE code_verifier is mandatory)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required parameters (PKCE code_verifier is mandatory)" },
+        { status: 400 }
+      );
     }
 
-    // Extract role from state
     const [, role] = state.split("_");
 
-    // Use Signicat sandbox discovery (matches your authUrl)
-    const discoveryUrl = 'https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration';
+    const discoveryUrl =
+      "https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration";
     const configRes = await fetch(discoveryUrl);
+
     if (!configRes.ok) throw new Error("Failed to fetch OIDC discovery config");
+
     const config = await configRes.json();
     const tokenEndpoint = config.token_endpoint;
 
@@ -53,7 +59,6 @@ export async function POST(req: NextRequest) {
     }
 
     const tokens = await response.json();
-
     const decodedIdToken = jwt.decode(tokens.id_token) as any;
 
     if (!decodedIdToken) {
@@ -64,10 +69,13 @@ export async function POST(req: NextRequest) {
       role,
       user: {
         id: decodedIdToken.sub,
-        name: decodedIdToken.name || `${decodedIdToken.given_name} ${decodedIdToken.family_name}`,
+        name:
+          decodedIdToken.name ||
+          `${decodedIdToken.given_name} ${decodedIdToken.family_name}`,
         email: decodedIdToken.email,
         phone: decodedIdToken.phone_number,
-        socialNumber: decodedIdToken.norwegian_nin || decodedIdToken.birthnumber,
+        socialNumber:
+          decodedIdToken.norwegian_nin || decodedIdToken.birthnumber,
       },
       accessToken: tokens.access_token,
       loginTime: Date.now(),
