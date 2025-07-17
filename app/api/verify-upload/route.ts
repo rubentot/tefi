@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid"
 import { createWorker } from "tesseract.js"
 import { extractText, getDocumentProxy } from "unpdf"
 import { addProof } from "@/lib/mockBank"; // For storing extracted limit
+import os from "os";
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
 
     // Save file temporarily
-    const tmpPath = path.join("/tmp", `${uuidv4()}-${file.name}`)
+    const tmpPath = path.join(os.tmpdir(), `${uuidv4()}-${file.name}`)
     await writeFile(tmpPath, buffer)
 
     let extractedText = ""
@@ -55,16 +56,20 @@ export async function POST(req: NextRequest) {
     const nameMatch = nameWords.every((word) => normalizedText.includes(word))
 
     // Extract loan amount (look for keywords like "godkjent beløp", "låneramme", "finansieringsbevis for kr")
-    const loanKeywords = ["godkjent lånebeløp", "låneramme", "finansieringsbevis for", "beløp kr", "maksimalt lån"];
+    const loanKeywords = ["godkjent lånebeløp", "låneramme", "finansieringsbevis for", "beløp kr", "maksimalt lån", "maks lån"];
     let extractedLoan = 0;
+    const allMatches: number[] = [];
     for (const keyword of loanKeywords) {
-      const regex = new RegExp(`${keyword}\\s*([\\d\\s.,]+)`, "i");
-      const match = extractedText.match(regex);
-      if (match) {
-        const amountStr = match[1].replace(/\D/g, ""); // Strip non-digits
-        extractedLoan = parseFloat(amountStr);
-        if (!isNaN(extractedLoan)) break;
+      const regex = new RegExp(`${keyword}\\s*[:=-]?\\s*([\\d\\s.,]+)\\s*(kr|nok)?`, "gi");
+      let match;
+      while ((match = regex.exec(extractedText)) !== null) {
+        const amountStr = match[1].replace(/\D/g, "");
+        const amount = parseFloat(amountStr);
+        if (!isNaN(amount)) allMatches.push(amount);
       }
+    }
+    if (allMatches.length > 0) {
+      extractedLoan = Math.max(...allMatches);
     }
 
     const sufficiencyMatch = extractedLoan >= bidAmount;
