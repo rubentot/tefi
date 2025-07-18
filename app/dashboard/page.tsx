@@ -49,8 +49,8 @@ export default function DashboardPage() {
             role: "broker",
             user: {
               id: session.user.id,
-              name: profile?.name || (session.user.email ?? "Unknown"),  // Ensure 'name' is always a string; fallback to email (now guaranteed string) or a default
-              email: session.user.email ?? "",  // Fallback to empty string if undefined, resolving the 'string | undefined' mismatch
+              name: profile?.name || (session.user.email ?? "Unknown"),
+              email: session.user.email ?? "",
               phone: profile?.phone || "",
               socialNumber: profile?.social_number || "",
             },
@@ -74,6 +74,7 @@ export default function DashboardPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
+    formData.append("bidAmount", bidAmount);  // Use local state, not session
 
     const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
     const verifyData = await verifyRes.json();
@@ -117,7 +118,7 @@ export default function DashboardPage() {
               <>
                 <div>
                   <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
-                  <Input id="number" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
+                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />  {/* Fix ID mismatch */}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">

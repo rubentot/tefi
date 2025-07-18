@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabaseClient } from '@/lib/supabase-client';
-// Use supabaseClient for auth.getSession(), signIn, etc.
 
 export function useSupabaseAuth() {
   const [error, setError] = useState<string | null>(null);

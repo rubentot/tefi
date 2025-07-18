@@ -39,20 +39,24 @@ export default function PersonalInfoPage() {
   const [secondAddress, setSecondAddress] = useState("");
   const [confirmInfo, setConfirmInfo] = useState(false); // Confirmation checkbox
 
-  useEffect(() => {
-    const sessionData = localStorage.getItem("bankid_session");
-    if (sessionData) {
-      const parsed = JSON.parse(sessionData);
-      setSession(parsed);
-      // Pre-fill from BankID session
-      setName(parsed.user.name || "");
-      setEmail(parsed.user.email || "");
-      setPhone(parsed.user.phone || "");
-      setSocialNumber(parsed.user.socialNumber || "");
-    } else {
-      router.push("/");
+ useEffect(() => {
+  const sessionData = localStorage.getItem("bankid_session");
+  if (sessionData) {
+    const parsed = JSON.parse(sessionData);
+    setSession(parsed);
+    if (!parsed?.user) {
+      router.push("/"); // Redirect if no user
+      return;
     }
-  }, [router]);
+    // Pre-fill from BankID session
+    setName(parsed.user.name || "");
+    setEmail(parsed.user.email || "");
+    setPhone(parsed.user.phone || "");
+    setSocialNumber(parsed.user.socialNumber || "");
+  } else {
+    router.push("/");
+  }
+}, [router]);
 
  const handleProceed = () => {
   if (!confirmInfo) {

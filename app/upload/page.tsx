@@ -39,45 +39,56 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
   const [referenceCode, setReferenceCode] = useState("");
+  const [apiMessage, setApiMessage] = useState(""); // For detailed API response
   const isMobile = useIsMobile();
 
   useEffect(() => {
-  const sessionData = localStorage.getItem("bankid_session");
-  if (sessionData) {
-    const parsed = JSON.parse(sessionData);
-    setSession(parsed);
-    if (parsed?.user) {  // Add ? for null-check
-      setName(parsed.user.name || "");
-      setEmail(parsed.user.email || "");
-      setPhone(parsed.user.phone || "");
-      setSocialNumber(parsed.user.socialNumber || "");
+    const sessionData = localStorage.getItem("bankid_session");
+    if (sessionData) {
+      const parsed = JSON.parse(sessionData);
+      setSession(parsed);
+      if (!parsed?.user) {
+        console.error("No user in session");
+        router.push("/"); // Redirect if invalid
+        return;
+      }
     } else {
-      console.error("No user in session");
-      router.push("/");  // Redirect if invalid
+      router.push("/");
     }
-  } else {
-    router.push("/");
-  }
-}, [router]);
+  }, [router]);
 
   const handleVerifyAndBid = async () => {
-    if (!file || !session || !session.bidAmount) return;
+    if (!file || !session || !session.bidAmount) {
+      setVerificationStatus("error");
+      setApiMessage("Manglende fil, sesjon eller budbeløp.");
+      return;
+    }
     setVerificationStatus("verifying");
+    setApiMessage(""); // Reset message
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
     formData.append("bidAmount", session.bidAmount.toString());
 
-    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-    const verifyData = await verifyRes.json();
+    try {
+      const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+      const verifyData = await verifyRes.json();
+      console.log("API Response:", verifyData); // Debug log
 
-    if (verifyData.success) {
-      const code = await addBid(session, parseFloat(session.bidAmount));
-      setReferenceCode(code);
-      setVerificationStatus("success");
-    } else {
+      if (verifyData.success) {
+        const code = await addBid(session, parseFloat(session.bidAmount));
+        setReferenceCode(code);
+        setVerificationStatus("success");
+        setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
+      } else {
+        setVerificationStatus("error");
+        setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
       setVerificationStatus("error");
+      setApiMessage("Nettverksfeil under opplasting. Prøv igjen.");
     }
   };
 
@@ -120,12 +131,12 @@ export default function UploadPage() {
             </Button>
             {verificationStatus === "success" && (
               <div className="bg-green-50 p-4 rounded-lg flex items-center">
-                <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
+                <CheckCircle className="mr-2 text-green-600" /> Verified! {apiMessage} Referansekode: {referenceCode} (gyldig i 5 min)
               </div>
             )}
             {verificationStatus === "error" && (
               <div className="bg-red-50 p-4 rounded-lg flex items-center">
-                <XCircle className="mr-2 text-red-600" /> Verifisering feilet. Prøv igjen.
+                <XCircle className="mr-2 text-red-600" /> Not Verified. {apiMessage}
               </div>
             )}
           </CardContent>
@@ -134,19 +145,3 @@ export default function UploadPage() {
     </TooltipProvider>
   );
 }
-
-function setName(arg0: any) {
-  throw new Error("Function not implemented.");
-}
-function setEmail(arg0: any) {
-  throw new Error("Function not implemented.");
-}
-
-function setPhone(arg0: any) {
-  throw new Error("Function not implemented.");
-}
-
-function setSocialNumber(arg0: any) {
-  throw new Error("Function not implemented.");
-}
-

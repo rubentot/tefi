@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function AuthCallbackPage() {
   const { data: sessionData, status } = useSession();
   const router = useRouter();
+  const statusRef = useRef(status);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -28,9 +33,17 @@ export default function AuthCallbackPage() {
         },
       };
       localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
-      router.push(role === "bidder" ? "/personal-info" : "/dashboard");
-    } else if (status === "unauthenticated") {
-      router.push("/");
+      router.push(role === "bidder" ? "/bid-form" : "/dashboard");
+    } 
+    // Removed unauthenticated redirect to avoid loop; if no session after loading, show error instead
+    else if (status === "loading") {
+      // Wait for session to load
+      const timeout = setTimeout(() => {
+        if (statusRef.current !== "authenticated") {
+          router.push("/"); // Fallback if session fails to load
+        }
+      }, 5000); // 5s timeout to prevent infinite wait
+      return () => clearTimeout(timeout);
     }
   }, [status, sessionData, router]);
 

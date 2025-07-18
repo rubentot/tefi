@@ -17,12 +17,12 @@ export default function HomePage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const handleBidderLogin = async () => {
+ const handleBidderLogin = async () => {
   console.log("Bidder login button clicked");
   try {
     console.log("Starting nextAuthSignIn...");
     await nextAuthSignIn("signicat", { 
-      callbackUrl: "/personal-info",  // Direct redirect to personal-info
+      callbackUrl: "/auth/callback",  // Route through callback to store session
       state: "auth_bidder" 
     });
     console.log("SignIn completed");
