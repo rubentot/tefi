@@ -8,7 +8,7 @@ export function createSupabaseServerClient() {
     {
       cookies: {
         get(name: string) {
-          return cookies().get(name)?.value; // ✅ now called only at runtime
+          return cookies().get(name)?.value; 
         },
         set(name: string, value: string, options: any) {
           cookies().set({ name, value, ...options });

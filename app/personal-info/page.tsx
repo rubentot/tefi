@@ -54,29 +54,32 @@ export default function PersonalInfoPage() {
     }
   }, [router]);
 
-  const handleProceed = () => {
-    if (!confirmInfo) {
-      alert("Vennligst bekreft at opplysningene er korrekte.");
-      return;
-    }
-    if (session) {
-      const updatedSession = {
-        ...session,
-        user: {
-          ...session.user,
-          name,
-          email,
-          phone,
-          socialNumber,
-          address,
-        },
-        bidType,
-        secondBidder: addSecondBidder ? { name: secondName, email: secondEmail, phone: secondPhone, socialNumber: secondSocialNumber, address: secondAddress } : null,
-      };
-      localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
-    }
-    router.push("/bid-form"); // Navigate to separate bid page
-  };
+ const handleProceed = () => {
+  if (!confirmInfo) {
+    alert("Vennligst bekreft at opplysningene er korrekte.");
+    return;
+  }
+  if (session) {
+    const updatedSession = {
+      ...session,
+      user: {
+        ...session.user,
+        name,
+        email,
+        phone,
+        socialNumber,
+        address,
+      },
+      bidType,
+      secondBidder: addSecondBidder ? { name: secondName, email: secondEmail, phone: secondPhone, socialNumber: secondSocialNumber, address: secondAddress } : null,
+    };
+    localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
+    console.log("Saved session:", updatedSession);  // Debug full object
+    setTimeout(() => {
+      router.push("/upload");  // Delay redirect by 100ms to ensure storage sync
+    }, 100);
+  }
+};
 
   if (!session) {
     return <div className="min-h-screen flex items-center justify-center">Laster...</div>;

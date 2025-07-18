@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signIn as nextAuthSignIn } from "next-auth/react"; // For Signicat/BankID login
-import { useSupabaseAuth } from "@/hooks/use-supabase-auth"; // Assuming the hook path
+import { signIn as nextAuthSignIn } from "next-auth/react";  // Ensure imported
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 
 export default function HomePage() {
   const router = useRouter();
@@ -18,9 +18,18 @@ export default function HomePage() {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleBidderLogin = async () => {
-    // Start Signicat authentication process for BankID and redirect to dashboard on success
-    await nextAuthSignIn("signicat", { callbackUrl: "/dashboard" });
-  };
+  console.log("Bidder login button clicked");
+  try {
+    console.log("Starting nextAuthSignIn...");
+    await nextAuthSignIn("signicat", { 
+      callbackUrl: "/personal-info",  // Direct redirect to personal-info
+      state: "auth_bidder" 
+    });
+    console.log("SignIn completed");
+  } catch (err) {
+    console.error("SignIn error:", err);
+  }
+};
 
   const handleBrokerLogin = async () => {
     if (!email || !password) return;
@@ -36,14 +45,14 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
-        {/* Bidder Card */}
+        
         <Card className="flex flex-col justify-between">
           <CardHeader>
             <CardTitle>Logg inn som budgiver</CardTitle>
             <CardDescription>Bruk BankID for sikker innlogging.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Add any additional info or icons if needed */}
+            
           </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={handleBidderLogin}>
@@ -52,14 +61,14 @@ export default function HomePage() {
           </CardFooter>
         </Card>
 
-        {/* Broker Card */}
+       
         <Card className="flex flex-col justify-between">
           <CardHeader>
             <CardTitle>Logg inn som megler</CardTitle>
             <CardDescription>Bruk e-post og passord for innlogging.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Add any additional info or icons if needed */}
+           
           </CardContent>
           <CardFooter>
             <Dialog>

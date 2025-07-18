@@ -42,19 +42,23 @@ export default function UploadPage() {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const sessionData = localStorage.getItem("bankid_session");
-    if (sessionData) {
-      const parsed = JSON.parse(sessionData);
-      console.log("Upload page session:", parsed); // Debug
-      setSession(parsed);
-      if (parsed.role !== "bidder") {
-        router.push("/");
-      }
+  const sessionData = localStorage.getItem("bankid_session");
+  if (sessionData) {
+    const parsed = JSON.parse(sessionData);
+    setSession(parsed);
+    if (parsed?.user) {  // Add ? for null-check
+      setName(parsed.user.name || "");
+      setEmail(parsed.user.email || "");
+      setPhone(parsed.user.phone || "");
+      setSocialNumber(parsed.user.socialNumber || "");
     } else {
-      console.log("No session found, redirecting to /");
-      router.push("/");
+      console.error("No user in session");
+      router.push("/");  // Redirect if invalid
     }
-  }, [router]);
+  } else {
+    router.push("/");
+  }
+}, [router]);
 
   const handleVerifyAndBid = async () => {
     if (!file || !session || !session.bidAmount) return;
@@ -64,7 +68,6 @@ export default function UploadPage() {
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
     formData.append("bidAmount", session.bidAmount.toString());
-    
 
     const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
     const verifyData = await verifyRes.json();
@@ -131,3 +134,19 @@ export default function UploadPage() {
     </TooltipProvider>
   );
 }
+
+function setName(arg0: any) {
+  throw new Error("Function not implemented.");
+}
+function setEmail(arg0: any) {
+  throw new Error("Function not implemented.");
+}
+
+function setPhone(arg0: any) {
+  throw new Error("Function not implemented.");
+}
+
+function setSocialNumber(arg0: any) {
+  throw new Error("Function not implemented.");
+}
+
