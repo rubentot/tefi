@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="no">
       <body className={inter.className}>
-        <Providers>  // Wrap here
+        <Providers>
           {children}
         </Providers>
       </body>
