@@ -17,18 +17,12 @@ export default function AuthCallbackPage() {
       role = extractedRole || "bidder";
     }
 
-    // Assume auth succeeded if callback is reached; store minimal session
-    const updatedSession = {
-      role,
-      user: { /* Mock or extract from params if needed */ },
-      // In real, fetch session here if necessary
-    };
+    // Store session with role
+    const updatedSession = { role }; // Expand with more data if needed from params
     localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
 
-    // Redirect with delay to ensure storage
-    setTimeout(() => {
-      router.replace(role === "bidder" ? "/bid-form" : "/dashboard"); // Use replace to avoid back button issues
-    }, 1000);
+    // Redirect immediately
+    router.push(role === "bidder" ? "/bid-form" : "/dashboard");
   }, [router]);
 
   return (

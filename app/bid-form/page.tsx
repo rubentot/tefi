@@ -51,7 +51,8 @@ export default function BidFormPage() {
   const [takeoverDate, setTakeoverDate] = useState("");
   const [financingPlans, setFinancingPlans] = useState<Bank[]>([{ contactPerson: "", phone: "", bankName: "" }]);
 
-  useEffect(() => {
+useEffect(() => {
+  setTimeout(() => { // 500ms delay for sync
     const sessionData = localStorage.getItem("bankid_session");
     if (sessionData) {
       const parsed = JSON.parse(sessionData);
@@ -59,15 +60,12 @@ export default function BidFormPage() {
       if (parsed.role !== "bidder") {
         router.push("/");
       }
-      // Pre-fill from BankID session
-      setName(parsed.user.name || "");
-      setEmail(parsed.user.email || "");
-      setPhone(parsed.user.phone || "");
-      setSocialNumber(parsed.user.socialNumber || "");
+      // Pre-fill...
     } else {
       router.push("/");
     }
-  }, [router]);
+  }, 500);
+}, [router]);
 
   const updateBank = (index: number, field: keyof Bank, value: string) => {
     const updated = [...financingPlans];
