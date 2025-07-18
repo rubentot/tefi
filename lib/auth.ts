@@ -6,7 +6,7 @@ export const authOptions: NextAuthOptions = {
       id: "signicat",
       name: "Signicat (BankID)",
       type: "oauth",
-      wellKnown: "https://tefi.sandbox.signicat.com/auth/open/.well-known/openid-configuration",
+      wellKnown: "https://api.signicat.com/auth/open/.well-known/openid-configuration",
       authorization: { params: { scope: "openid profile" } },
       clientId: process.env.BANKID_CLIENT_ID,
       clientSecret: process.env.BANKID_CLIENT_SECRET,
