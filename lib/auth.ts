@@ -34,14 +34,9 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // Allow relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allow same-origin URLs
       if (new URL(url).origin === baseUrl) return url;
-      // Default to home or dashboard based on role (extract from state if available)
-      const state = new URL(url).searchParams.get("state");
-      const role = state ? state.split("_")[1] : "bidder";
-      return role === "bidder" ? `${baseUrl}/bid-form` : `${baseUrl}/dashboard`;
+      return baseUrl;
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
