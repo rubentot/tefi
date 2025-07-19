@@ -31,16 +31,20 @@ export default function HomePage() {
   }
 };
 
-  const handleBrokerLogin = async () => {
-    if (!email || !password) return;
-    const data = await signIn(email, password);
-    if (data) {
-      // Redirect to dashboard after successful login
-      router.push("/dashboard");
-    } else {
-      setLoginError(error || "Login failed");
-    }
-  };
+  // ... (rest of the file remains the same)
+
+const handleBrokerLogin = async () => {
+  if (!email || !password) return;
+  const data = await signIn(email, password);
+  if (data) {
+    // Redirect to verifiser after successful login
+    router.push("/verifiser");
+  } else {
+    setLoginError(error || "Login failed");
+  }
+};
+
+// ... (rest unchanged)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">

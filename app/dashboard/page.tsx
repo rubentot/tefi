@@ -68,25 +68,25 @@ export default function DashboardPage() {
   }, [router]);
 
   const handleVerifyAndBid = async () => {
-    if (!file || !session || !bidAmount) return;
-    setVerificationStatus("verifying");
+  if (!file || !session || !bidAmount) return;
+  setVerificationStatus("verifying");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("expectedName", session.user.name);
-    formData.append("bidAmount", bidAmount);  // Use local state, not session
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("expectedName", session.user.name);
+  formData.append("bidAmount", bidAmount);  // Use local state, not session
 
-    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-    const verifyData = await verifyRes.json();
+  const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+  const verifyData = await verifyRes.json();
 
-    if (verifyData.success) {
-      const code = await addBid(session, parseFloat(bidAmount));
-      setReferenceCode(code);
-      setVerificationStatus("success");
-    } else {
-      setVerificationStatus("error");
-    }
-  };
+  if (verifyData.success) {
+    const code = await addBid(session, parseFloat(bidAmount), "property1"); // Updated: Added realEstateId
+    setReferenceCode(code);
+    setVerificationStatus("success");
+  } else {
+    setVerificationStatus("error");
+  }
+};
 
   const handleBrokerVerify = async () => {
     const result = await verifyReferenceCode(brokerCode);

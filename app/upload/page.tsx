@@ -57,40 +57,40 @@ export default function UploadPage() {
     }
   }, [router]);
 
-  const handleVerifyAndBid = async () => {
-    if (!file || !session || !session.bidAmount) {
+ const handleVerifyAndBid = async () => {
+  if (!file || !session || !session.bidAmount) {
+    setVerificationStatus("error");
+    setApiMessage("Manglende fil, sesjon eller budbeløp.");
+    return;
+  }
+  setVerificationStatus("verifying");
+  setApiMessage(""); // Reset message
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("expectedName", session.user.name);
+  formData.append("bidAmount", session.bidAmount.toString());
+
+  try {
+    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+    const verifyData = await verifyRes.json();
+    console.log("API Response:", verifyData); // Debug log
+
+    if (verifyData.success) {
+      const code = await addBid(session, parseFloat(session.bidAmount), "property1"); // Updated: Added realEstateId
+      setReferenceCode(code);
+      setVerificationStatus("success");
+      setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
+    } else {
       setVerificationStatus("error");
-      setApiMessage("Manglende fil, sesjon eller budbeløp.");
-      return;
+      setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
     }
-    setVerificationStatus("verifying");
-    setApiMessage(""); // Reset message
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("expectedName", session.user.name);
-    formData.append("bidAmount", session.bidAmount.toString());
-
-    try {
-      const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-      const verifyData = await verifyRes.json();
-      console.log("API Response:", verifyData); // Debug log
-
-      if (verifyData.success) {
-        const code = await addBid(session, parseFloat(session.bidAmount));
-        setReferenceCode(code);
-        setVerificationStatus("success");
-        setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
-      } else {
-        setVerificationStatus("error");
-        setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
-      }
-    } catch (err) {
-      console.error("Upload error:", err);
-      setVerificationStatus("error");
-      setApiMessage("Nettverksfeil under opplasting. Prøv igjen.");
-    }
-  };
+  } catch (err) {
+    console.error("Upload error:", err);
+    setVerificationStatus("error");
+    setApiMessage("Nettverksfeil under opplasting. Prøv igjen.");
+  }
+};
 
   const uploadInstructions = isMobile 
     ? "På mobil: Ta skjermbilde i bank-appen og last opp, eller lagre e-post som PDF via 'Del' > 'Lagre som PDF'."
