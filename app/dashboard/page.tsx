@@ -37,47 +37,77 @@ export default function DashboardPage() {
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    console.log("Starting session check..."); // Debug start
     const sessionData = localStorage.getItem("bankid_session");
     if (sessionData) {
-      setSession(JSON.parse(sessionData));
+      const parsedSession = JSON.parse(sessionData);
+      console.log("LocalStorage session found:", parsedSession); // Log parsed session
+      setSession(parsedSession);
+      if (parsedSession.role === "broker") {
+        console.log("Broker role detected in localStorage, redirecting to /verifiser");
+        router.push("/verifiser");
+      } else {
+        console.log("Non-broker role in localStorage, staying on dashboard");
+      }
     } else {
+      console.log("No localStorage session, checking Supabase...");
       const checkSupabaseSession = async () => {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session && session.user.user_metadata.role === "broker") {
-          const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
-          const mockSession = {
-            role: "broker",
-            user: {
-              id: session.user.id,
-              name: profile?.name || (session.user.email ?? "Unknown"),
-              email: session.user.email ?? "",
-              phone: profile?.phone || "",
-              socialNumber: profile?.social_number || "",
-            },
-            accessToken: session.access_token,
-            loginTime: Date.now(),
-          };
-          localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-          setSession(mockSession);
-          // Redirect broker to /verifiser
-          router.push("/verifiser");
-        } else if (session) {
-          const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
-          const mockSession = {
-            role: "bidder", // Default to bidder if not broker
-            user: {
-              id: session.user.id,
-              name: profile?.name || (session.user.email ?? "Unknown"),
-              email: session.user.email ?? "",
-              phone: profile?.phone || "",
-              socialNumber: profile?.social_number || "",
-            },
-            accessToken: session.access_token,
-            loginTime: Date.now(),
-          };
-          localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-          setSession(mockSession);
-        } else {
+        try {
+          const { data: { session }, error } = await supabaseClient.auth.getSession();
+          if (error) {
+            console.error("Supabase getSession error:", error); // Log any errors
+            router.push("/");
+            return;
+          }
+          console.log("Supabase raw session:", session); // Log full raw session
+          if (session && session.user.user_metadata.role === "broker") {
+            console.log("Broker metadata detected:", session.user.user_metadata);
+            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(); // Use maybeSingle to avoid 406 error
+            if (profileError) {
+              console.error("Profile fetch error:", profileError);
+            }
+            const mockSession = {
+              role: "broker",
+              user: {
+                id: session.user.id,
+                name: profile?.name || (session.user.email ?? "Unknown"),
+                email: session.user.email ?? "",
+                phone: profile?.phone || "",
+                socialNumber: profile?.social_number || "",
+              },
+              accessToken: session.access_token,
+              loginTime: Date.now(),
+            };
+            localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+            setSession(mockSession);
+            console.log("Broker session created and stored:", mockSession);
+            router.push("/verifiser");
+          } else if (session) {
+            console.log("Non-broker session, defaulting to bidder");
+            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(); // Also use maybeSingle for bidder
+            if (profileError) {
+              console.error("Profile fetch error for bidder:", profileError);
+            }
+            const mockSession = {
+              role: "bidder", // Default to bidder if not broker
+              user: {
+                id: session.user.id,
+                name: profile?.name || (session.user.email ?? "Unknown"),
+                email: session.user.email ?? "",
+                phone: profile?.phone || "",
+                socialNumber: profile?.social_number || "",
+              },
+              accessToken: session.access_token,
+              loginTime: Date.now(),
+            };
+            localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+            setSession(mockSession);
+          } else {
+            console.log("No Supabase session, redirecting to /");
+            router.push("/");
+          }
+        } catch (err) {
+          console.error("Unexpected error in session check:", err);
           router.push("/");
         }
       };
@@ -92,13 +122,13 @@ export default function DashboardPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
-    formData.append("bidAmount", bidAmount); // Use local state, not session
+    formData.append("bidAmount", bidAmount);
 
     const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
     const verifyData = await verifyRes.json();
 
     if (verifyData.success) {
-      const code = await addBid(session, parseFloat(bidAmount), "property1"); // Updated: Added realEstateId
+      const code = await addBid(session, parseFloat(bidAmount), "property1");
       setReferenceCode(code);
       setVerificationStatus("success");
     } else {
