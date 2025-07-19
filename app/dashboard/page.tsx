@@ -59,6 +59,24 @@ export default function DashboardPage() {
           };
           localStorage.setItem("bankid_session", JSON.stringify(mockSession));
           setSession(mockSession);
+          // Redirect broker to /verifiser
+          router.push("/verifiser");
+        } else if (session) {
+          const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).single();
+          const mockSession = {
+            role: "bidder", // Default to bidder if not broker
+            user: {
+              id: session.user.id,
+              name: profile?.name || (session.user.email ?? "Unknown"),
+              email: session.user.email ?? "",
+              phone: profile?.phone || "",
+              socialNumber: profile?.social_number || "",
+            },
+            accessToken: session.access_token,
+            loginTime: Date.now(),
+          };
+          localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+          setSession(mockSession);
         } else {
           router.push("/");
         }
@@ -68,25 +86,25 @@ export default function DashboardPage() {
   }, [router]);
 
   const handleVerifyAndBid = async () => {
-  if (!file || !session || !bidAmount) return;
-  setVerificationStatus("verifying");
+    if (!file || !session || !bidAmount) return;
+    setVerificationStatus("verifying");
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("expectedName", session.user.name);
-  formData.append("bidAmount", bidAmount);  // Use local state, not session
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("expectedName", session.user.name);
+    formData.append("bidAmount", bidAmount); // Use local state, not session
 
-  const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-  const verifyData = await verifyRes.json();
+    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+    const verifyData = await verifyRes.json();
 
-  if (verifyData.success) {
-    const code = await addBid(session, parseFloat(bidAmount), "property1"); // Updated: Added realEstateId
-    setReferenceCode(code);
-    setVerificationStatus("success");
-  } else {
-    setVerificationStatus("error");
-  }
-};
+    if (verifyData.success) {
+      const code = await addBid(session, parseFloat(bidAmount), "property1"); // Updated: Added realEstateId
+      setReferenceCode(code);
+      setVerificationStatus("success");
+    } else {
+      setVerificationStatus("error");
+    }
+  };
 
   const handleBrokerVerify = async () => {
     const result = await verifyReferenceCode(brokerCode);
@@ -102,7 +120,7 @@ export default function DashboardPage() {
     return <div className="min-h-screen flex items-center justify-center">Logg inn for å fortsette...</div>;
   }
 
-  const uploadInstructions = isMobile 
+  const uploadInstructions = isMobile
     ? "På mobil: Ta skjermbilde i bank-appen og last opp, eller lagre e-post som PDF via 'Del' > 'Lagre som PDF'."
     : "Last ned fra bankens portal/e-post som PDF. Hvis i app: Skriv ut til PDF eller ta skjermbilde og konverter.";
 
@@ -118,7 +136,7 @@ export default function DashboardPage() {
               <>
                 <div>
                   <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
-                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />  {/* Fix ID mismatch */}
+                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
