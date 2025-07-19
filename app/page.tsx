@@ -31,20 +31,20 @@ export default function HomePage() {
   }
 };
 
-  // ... (rest of the file remains the same)
+
 
 const handleBrokerLogin = async () => {
   if (!email || !password) return;
   const data = await signIn(email, password);
   if (data) {
-    // Redirect to verifiser after successful login
+    // Redirect to /verifiser for brokers
     router.push("/verifiser");
   } else {
     setLoginError(error || "Login failed");
   }
 };
 
-// ... (rest unchanged)
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
