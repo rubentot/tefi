@@ -38,54 +38,44 @@ export default function DashboardPage() {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    console.log("Starting session check..."); // Debug start
-    const { data: listener } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
-      console.log("Auth state change:", event, "Session:", supabaseSession);
-      if (supabaseSession && supabaseSession.user.user_metadata.role === "broker") {
-        console.log("Broker detected, creating session...");
-        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', supabaseSession.user.id).limit(1).single();
-        const mockSession: UserSession = {
-          role: "broker",
-          user: {
-            id: supabaseSession.user.id,
-            name: profile?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
-            email: supabaseSession.user.email ?? "",
-            phone: profile?.phone ?? "",
-            socialNumber: profile?.social_number ?? "",
-          },
-          accessToken: supabaseSession.access_token,
-          loginTime: Date.now(),
-        };
-        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-        setSession(mockSession);
-        router.push("/verifiser");
-      } else if (supabaseSession) {
-        console.log("Non-broker detected, setting bidder session...");
-        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', supabaseSession.user.id).limit(1).single();
-        const mockSession: UserSession = {
-          role: "bidder",
-          user: {
-            id: supabaseSession.user.id,
-            name: profile?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
-            email: supabaseSession.user.email ?? "",
-            phone: profile?.phone ?? "",
-            socialNumber: profile?.social_number ?? "",
-          },
-          accessToken: supabaseSession.access_token,
-          loginTime: Date.now(),
-        };
-        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-        setSession(mockSession);
-      } else {
-        console.log("No session, redirecting to login...");
-        setSession(null);
-        router.push("/");
-      }
-    });
+  console.log("Starting session check...");
+  const { data: listener } = supabaseClient.auth.onAuthStateChange(async (_event, supabaseSession) => {
+    if (!supabaseSession) {
+      setSession(null);
+      router.push("/");
+      return;
+    }
 
-    // Cleanup on unmount
-    return () => listener.subscription.unsubscribe();
-  }, [router]);
+    const isBroker = supabaseSession.user.user_metadata.role === "broker";
+    const { data: profile, error } = await supabaseClient
+      .from("profiles")
+      .select("*")
+      .eq("user_id", supabaseSession.user.id)
+      .maybeSingle();  // <-- This change
+
+    if (error) console.error("Profile fetch error:", error);  // Log but don't crash
+
+    const mockSession: UserSession = {
+      role: isBroker ? "broker" : "bidder",
+      user: {
+        id: supabaseSession.user.id,
+        name: profile?.name || (supabaseSession.user.email?.split("@")[0] ?? "Unknown"),
+        email: supabaseSession.user.email ?? "",
+        phone: profile?.phone ?? "",
+        socialNumber: profile?.social_number ?? "",
+      },
+      accessToken: supabaseSession.access_token,
+      loginTime: Date.now(),
+    };
+
+    localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+    setSession(mockSession);
+
+    if (isBroker) router.push("/verifiser");
+  });
+
+  return () => listener.subscription.unsubscribe();
+}, [router]);
 
   const handleVerifyAndBid = async () => {
     if (!file || !session || !bidAmount) return;
