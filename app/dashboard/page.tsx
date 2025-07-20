@@ -1,119 +1,212 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signIn as nextAuthSignIn } from "next-auth/react"; // Ensure imported
-import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
+import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { addBid, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
+import { supabaseClient } from "@/lib/supabase-client";
+export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
+interface UserSession {
+  role: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    socialNumber: string;
+  };
+  accessToken: string;
+  loginTime: number;
+}
+
+export default function DashboardPage() {
   const router = useRouter();
-  const { signIn, error } = useSupabaseAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [bidAmount, setBidAmount] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
+  const [referenceCode, setReferenceCode] = useState("");
+  const [brokerCode, setBrokerCode] = useState("");
+  const [brokerResult, setBrokerResult] = useState<{ valid: boolean; approved?: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
+  const isMobile = useIsMobile();
 
- const handleBidderLogin = async () => {
-  console.log("Bidder login button clicked");
-  try {
-    console.log("Starting nextAuthSignIn...");
-    await nextAuthSignIn("signicat", { 
-      callbackUrl: "/auth/callback",  // Route through callback to store session
-      state: "auth_bidder" 
+  useEffect(() => {
+    console.log("Starting session check..."); // Debug start
+    const { data: listener } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
+      console.log("Auth state change:", event, "Session:", supabaseSession);
+      if (supabaseSession && supabaseSession.user.user_metadata.role === "broker") {
+        console.log("Broker detected, creating session...");
+        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', supabaseSession.user.id).limit(1).single();
+        const mockSession: UserSession = {
+          role: "broker",
+          user: {
+            id: supabaseSession.user.id,
+            name: profile?.data?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
+            email: supabaseSession.user.email ?? "",
+            phone: profile?.data?.phone ?? "",
+            socialNumber: profile?.data?.social_number ?? "",
+          },
+          accessToken: supabaseSession.access_token,
+          loginTime: Date.now(),
+        };
+        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+        setSession(mockSession);
+        router.push("/verifiser");
+      } else if (supabaseSession) {
+        console.log("Non-broker detected, setting bidder session...");
+        const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', supabaseSession.user.id).limit(1).single();
+        const mockSession: UserSession = {
+          role: "bidder",
+          user: {
+            id: supabaseSession.user.id,
+            name: profile?.data?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
+            email: supabaseSession.user.email ?? "",
+            phone: profile?.data?.phone ?? "",
+            socialNumber: profile?.data?.social_number ?? "",
+          },
+          accessToken: supabaseSession.access_token,
+          loginTime: Date.now(),
+        };
+        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+        setSession(mockSession);
+      } else {
+        console.log("No session, redirecting to login...");
+        setSession(null);
+        router.push("/");
+      }
     });
-    console.log("SignIn completed");
-  } catch (err) {
-    console.error("SignIn error:", err);
-  }
-};
 
+    // Cleanup on unmount
+    return () => listener.subscription.unsubscribe();
+  }, [router]);
 
+  const handleVerifyAndBid = async () => {
+    if (!file || !session || !bidAmount) return;
+    setVerificationStatus("verifying");
 
-const handleBrokerLogin = async () => {
-  console.log("Broker login button clicked, email:", email); // Debug button click
-  if (!email || !password) {
-    console.log("Missing email or password");
-    return;
-  }
-  try {
-    const data = await signIn(email, password);
-    console.log("SignIn data:", data); // Debug signIn result
-    if (data) {
-      // Redirect to /verifiser for brokers
-      router.push("/verifiser");
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("expectedName", session.user.name);
+    formData.append("bidAmount", bidAmount);
+
+    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+    const verifyData = await verifyRes.json();
+
+    if (verifyData.success) {
+      const code = await addBid(session, parseFloat(bidAmount), "property1");
+      setReferenceCode(code);
+      setVerificationStatus("success");
     } else {
-      setLoginError(error || "Login failed");
-      console.log("Login failed, error:", error);
+      setVerificationStatus("error");
     }
-  } catch (err) {
-    console.error("Broker login error:", err);
-    setLoginError("Unexpected error during login");
+  };
+
+  const handleBrokerVerify = async () => {
+    const result = await verifyReferenceCode(brokerCode);
+    setBrokerResult(result);
+  };
+
+  const handleApprove = async (code: string, approved: boolean) => {
+    await updateBidApproval(code, approved);
+    setBrokerResult(prev => prev ? { ...prev, approved } : null);
+  };
+
+  if (!session) {
+    return <div className="min-h-screen flex items-center justify-center">Logg inn for å fortsette...</div>;
   }
-};
 
-
+  const uploadInstructions = isMobile
+    ? "På mobil: Ta skjermbilde i bank-appen og last opp, eller lagre e-post som PDF via 'Del' > 'Lagre som PDF'."
+    : "Last ned fra bankens portal/e-post som PDF. Hvis i app: Skriv ut til PDF eller ta skjermbilde og konverter.";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
-        
-        <Card className="flex flex-col justify-between">
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
+        <Card className="max-w-4xl mx-auto">
           <CardHeader>
-            <CardTitle>Logg inn som budgiver</CardTitle>
-            <CardDescription>Bruk BankID for sikker innlogging.</CardDescription>
+            <CardTitle>Velkommen, {session.user.name}</CardTitle>
           </CardHeader>
-          <CardContent>
-            
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={handleBidderLogin}>
-              Logg inn med BankID
-            </Button>
-          </CardFooter>
-        </Card>
-
-       
-        <Card className="flex flex-col justify-between">
-          <CardHeader>
-            <CardTitle>Logg inn som megler</CardTitle>
-            <CardDescription>Bruk e-post og passord for innlogging.</CardDescription>
-          </CardHeader>
-          <CardContent>
-           
-          </CardContent>
-          <CardFooter>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="w-full">Logg inn</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Megler innlogging</DialogTitle>
-                  <DialogDescription>Skriv inn dine opplysninger for å logge inn.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">E-post</Label>
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Passord</Label>
-                    <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                  </div>
-                  {loginError && <p className="text-sm text-red-600">{loginError}</p>}
+          <CardContent className="space-y-6">
+            {session.role === "bidder" ? (
+              <>
+                <div>
+                  <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
+                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
                 </div>
-                <DialogFooter>
-                  <Button onClick={handleBrokerLogin}>Logg inn</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardFooter>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="file">Last opp finansieringsbevis (PDF/bilde)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>{uploadInstructions}</p>
+                        <p className="mt-2">Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                  {verificationStatus === "error" && (
+                    <p className="text-sm text-muted-foreground mt-2">Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.</p>
+                  )}
+                </div>
+                <Button onClick={handleVerifyAndBid} disabled={verificationStatus === "verifying"}>
+                  <Upload className="mr-2 h-4 w-4" /> Verifiser og send bud
+                </Button>
+                {verificationStatus === "success" && (
+                  <div className="bg-green-50 p-4 rounded-lg flex items-center">
+                    <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
+                  </div>
+                )}
+                {verificationStatus === "error" && (
+                  <div className="bg-red-50 p-4 rounded-lg flex items-center">
+                    <XCircle className="mr-2 text-red-600" /> Verifisering feilet. Prøv igjen.
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <Label htmlFor="brokerCode">Skriv inn referansekode</Label>
+                <Input id="brokerCode" placeholder="Skriv inn referansekode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
+                <Button onClick={handleBrokerVerify}>Verifiser</Button>
+                {brokerResult && (
+                  <div className={`p-4 rounded-lg ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
+                    {brokerResult.valid ? <CheckCircle className="mr-2 text-green-600" /> : <XCircle className="mr-2 text-red-600" />}
+                    {brokerResult.valid ? 'Gyldig bud' : 'Ugyldig kode'}
+                    {brokerResult.valid && brokerResult.details && (
+                      <div className="mt-2 text-sm">
+                        <p><strong>Navn:</strong> {brokerResult.details.name}</p>
+                        <p><strong>E-post:</strong> {brokerResult.details.email}</p>
+                        <p><strong>Telefon:</strong> {brokerResult.details.phone}</p>
+                        <p><strong>Bankkontakt:</strong> {brokerResult.details.bankContact}</p>
+                        <div className="mt-4 flex gap-4">
+                          <Button variant="default" onClick={() => handleApprove(brokerCode, true)}>
+                            Godkjenn
+                          </Button>
+                          <Button variant="destructive" onClick={() => handleApprove(brokerCode, false)}>
+                            Avvis
+                          </Button>
+                        </div>
+                        {brokerResult.approved !== undefined && (
+                          <p className="mt-2"><strong>Status:</strong> {brokerResult.approved ? 'Godkjent' : 'Avvist'}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
         </Card>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

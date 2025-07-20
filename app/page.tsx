@@ -32,26 +32,26 @@ export default function HomePage() {
   };
 
   const handleBrokerLogin = async () => {
-    console.log("Broker login button clicked, email:", email); // Debug button click
-    if (!email || !password) {
-      console.log("Missing email or password");
-      return;
+  console.log("Broker login button clicked, email:", email);
+  if (!email || !password) {
+    console.log("Missing email or password");
+    return;
+  }
+  try {
+    const data = await signIn(email, password);
+    console.log("SignIn data:", data);
+    if (data) {
+      router.refresh(); // Force refresh
+      router.push("/verifiser");
+    } else {
+      setLoginError(error || "Login failed");
+      console.log("Login failed, error:", error);
     }
-    try {
-      const data = await signIn(email, password);
-      console.log("SignIn data:", data); // Debug signIn result
-      if (data) {
-        // Redirect to /verifiser for brokers
-        router.push("/verifiser");
-      } else {
-        setLoginError(error || "Login failed");
-        console.log("Login failed, error:", error);
-      }
-    } catch (err) {
-      console.error("Broker login error:", err);
-      setLoginError("Unexpected error during login");
-    }
-  };
+  } catch (err) {
+    console.error("Broker login error:", err);
+    setLoginError("Unexpected error during login");
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
