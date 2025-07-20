@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     console.log("Starting session check..."); // Debug start
-    const { data: listener } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
+    const { data: listener } = supabaseClient.auth.onAuthStateChange((event, supabaseSession) => {
       console.log("Auth state change:", event, "Session:", supabaseSession);
       if (supabaseSession && supabaseSession.user.user_metadata.role === "broker") {
         console.log("Broker detected, creating session...");
@@ -48,10 +48,10 @@ export default function DashboardPage() {
           role: "broker",
           user: {
             id: supabaseSession.user.id,
-            name: profile?.data?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
+            name: profile?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
             email: supabaseSession.user.email ?? "",
-            phone: profile?.data?.phone ?? "",
-            socialNumber: profile?.data?.social_number ?? "",
+            phone: profile?.phone ?? "",
+            socialNumber: profile?.social_number ?? "",
           },
           accessToken: supabaseSession.access_token,
           loginTime: Date.now(),
@@ -66,10 +66,10 @@ export default function DashboardPage() {
           role: "bidder",
           user: {
             id: supabaseSession.user.id,
-            name: profile?.data?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
+            name: profile?.name || (supabaseSession.user.email?.split('@')[0] ?? "Unknown"),
             email: supabaseSession.user.email ?? "",
-            phone: profile?.data?.phone ?? "",
-            socialNumber: profile?.data?.social_number ?? "",
+            phone: profile?.phone ?? "",
+            socialNumber: profile?.social_number ?? "",
           },
           accessToken: supabaseSession.access_token,
           loginTime: Date.now(),
