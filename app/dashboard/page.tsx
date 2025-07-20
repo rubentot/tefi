@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     console.log("Starting session check..."); // Debug start
-    const { data: listener } = supabaseClient.auth.onAuthStateChange((event, supabaseSession) => {
+    const { data: listener } = supabaseClient.auth.onAuthStateChange(async (event, supabaseSession) => {
       console.log("Auth state change:", event, "Session:", supabaseSession);
       if (supabaseSession && supabaseSession.user.user_metadata.role === "broker") {
         console.log("Broker detected, creating session...");
