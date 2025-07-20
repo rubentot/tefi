@@ -21,9 +21,9 @@ export default function HomePage() {
     console.log("Bidder login button clicked");
     try {
       console.log("Starting nextAuthSignIn...");
-      await nextAuthSignIn("signicat", {
-        callbackUrl: "/auth/callback", // Route through callback to store session
-        state: "auth_bidder",
+      await nextAuthSignIn("signicat", { 
+        callbackUrl: "/auth/callback",  // Route through callback to store session
+        state: "auth_bidder" 
       });
       console.log("SignIn completed");
     } catch (err) {
@@ -32,26 +32,40 @@ export default function HomePage() {
   };
 
   const handleBrokerLogin = async () => {
-  console.log("Broker login button clicked, email:", email);
-  if (!email || !password) {
-    console.log("Missing email or password");
-    return;
-  }
-  try {
-    const data = await signIn(email, password);
-    console.log("SignIn data:", data);
-    if (data) {
-      router.refresh(); // Force refresh
-      router.push("/verifiser");
-    } else {
-      setLoginError(error || "Login failed");
-      console.log("Login failed, error:", error);
+    console.log("Broker login button clicked, email:", email);
+    if (!email || !password) {
+      console.log("Missing email or password");
+      return;
     }
-  } catch (err) {
-    console.error("Broker login error:", err);
-    setLoginError("Unexpected error during login");
-  }
-};
+    try {
+      const data = await signIn(email, password);
+      console.log("SignIn data:", data);
+      if (data) {
+        // Manually set localStorage with session data
+        const mockSession = {
+          role: "broker",
+          user: {
+            id: data.user.id,
+            name: data.user.email.split('@')[0] || "Unknown",
+            email: data.user.email,
+            phone: data.user.phone || "",
+            socialNumber: "",
+          },
+          accessToken: data.session.access_token,
+          loginTime: Date.now(),
+        };
+        localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+        console.log("LocalStorage set:", mockSession);
+        router.push("/verifiser");
+      } else {
+        setLoginError(error || "Login failed");
+        console.log("Login failed, error:", error);
+      }
+    } catch (err) {
+      console.error("Broker login error:", err);
+      setLoginError("Unexpected error during login");
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
