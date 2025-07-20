@@ -32,49 +32,39 @@ export default function HomePage() {
   };
 
   const handleBrokerLogin = async () => {
-    console.log("Broker login button clicked, email:", email, "password length:", password.length); // Enhanced debug
+    console.log("Broker login button clicked, email:", email); // Debug button click
     if (!email || !password) {
       console.log("Missing email or password");
-      setLoginError("Please enter both email and password");
       return;
     }
     try {
       const data = await signIn(email, password);
       console.log("SignIn data:", data); // Debug signIn result
-      if (data && data.session) {
-        console.log("Redirecting to /verifiser with session:", data.session);
-        localStorage.setItem("bankid_session", JSON.stringify({
-          role: "broker",
-          user: {
-            id: data.user.id,
-            name: data.user.email.split("@")[0], // Fallback name
-            email: data.user.email,
-            phone: data.user.phone || "",
-            socialNumber: "",
-          },
-          accessToken: data.session.access_token,
-          loginTime: Date.now(),
-        }));
+      if (data) {
+        // Redirect to /verifiser for brokers
         router.push("/verifiser");
       } else {
-        setLoginError(error || "Login failed - no session data");
+        setLoginError(error || "Login failed");
         console.log("Login failed, error:", error);
       }
     } catch (err) {
       console.error("Broker login error:", err);
-      setLoginError("Unexpected error during login: " + (err as Error).message);
+      setLoginError("Unexpected error during login");
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
+        
         <Card className="flex flex-col justify-between">
           <CardHeader>
             <CardTitle>Logg inn som budgiver</CardTitle>
             <CardDescription>Bruk BankID for sikker innlogging.</CardDescription>
           </CardHeader>
-          <CardContent></CardContent>
+          <CardContent>
+            
+          </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={handleBidderLogin}>
               Logg inn med BankID
@@ -82,18 +72,19 @@ export default function HomePage() {
           </CardFooter>
         </Card>
 
+       
         <Card className="flex flex-col justify-between">
           <CardHeader>
             <CardTitle>Logg inn som megler</CardTitle>
             <CardDescription>Bruk e-post og passord for innlogging.</CardDescription>
           </CardHeader>
-          <CardContent></CardContent>
+          <CardContent>
+           
+          </CardContent>
           <CardFooter>
             <Dialog>
               <DialogTrigger asChild>
-                <Button className="w-full" onClick={() => console.log("Dialog trigger clicked")}>
-                  Logg inn
-                </Button>
+                <Button className="w-full">Logg inn</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
