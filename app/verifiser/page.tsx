@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, XCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAllBids, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
+export const dynamic = 'force-dynamic';
 
 // Define types based on your session and Bid structure
 interface UserSession {
