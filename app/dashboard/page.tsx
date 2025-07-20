@@ -62,7 +62,7 @@ export default function DashboardPage() {
           console.log("Supabase raw session:", session); // Log full raw session
           if (session && session.user.user_metadata.role === "broker") {
             console.log("Broker metadata detected:", session.user.user_metadata);
-            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(); // Use maybeSingle to avoid 406 error
+            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
             if (profileError) {
               console.error("Profile fetch error:", profileError);
             }
@@ -84,12 +84,12 @@ export default function DashboardPage() {
             router.push("/verifiser");
           } else if (session) {
             console.log("Non-broker session, defaulting to bidder");
-            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle(); // Also use maybeSingle for bidder
+            const { data: profile, error: profileError } = await supabaseClient.from('profiles').select('*').eq('user_id', session.user.id).maybeSingle();
             if (profileError) {
               console.error("Profile fetch error for bidder:", profileError);
             }
             const mockSession = {
-              role: "bidder", // Default to bidder if not broker
+              role: "bidder",
               user: {
                 id: session.user.id,
                 name: profile?.name || (session.user.email ?? "Unknown"),
