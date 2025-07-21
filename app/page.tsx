@@ -46,8 +46,8 @@ export default function HomePage() {
           role: "broker",
           user: {
             id: data.user.id,
-            name: data.user.email.split('@')[0] || "Unknown",
-            email: data.user.email,
+            name: data.user.email?.split('@')[0] || "Unknown",
+            email: data.user.email ?? "",
             phone: data.user.phone || "",
             socialNumber: "",
           },

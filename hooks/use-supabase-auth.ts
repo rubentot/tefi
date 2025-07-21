@@ -1,3 +1,4 @@
+// Modified /hooks/use-supabase-auth.ts
 import { useState } from 'react';
 import { supabaseClient } from '@/lib/supabase-client';
 
@@ -37,6 +38,10 @@ export function useSupabaseAuth() {
     }
     // Fetch profile for extra data
     const { data: profile } = await supabaseClient.from('profiles').select('*').eq('user_id', data.user.id).single();
+
+    // Set localStorage for consistency with BankID sessions
+    localStorage.setItem("bankid_session", JSON.stringify({ role: "broker", user: data.user }));
+
     return { ...data, profile };
   };
 

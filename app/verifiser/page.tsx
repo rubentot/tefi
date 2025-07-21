@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, XCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAllBids, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
+import { supabaseClient } from "@/lib/supabase-client";
+
 export const dynamic = 'force-dynamic';
 
 // Define types based on your session and Bid structure
@@ -15,10 +17,10 @@ interface UserSession {
   role: string;
   user: {
     id: string;
-    name: string;
-    email: string;
-    phone: string;
-    socialNumber: string;
+    name?: string;
+    email?: string; // Changed to optional to match Supabase User type
+    phone?: string;
+    socialNumber?: string;
   };
   accessToken: string;
   loginTime: number;
@@ -48,18 +50,51 @@ export default function VerifyPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [realEstateId, setRealEstateId] = useState("property1"); // Mock; make dynamic later
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const sessionData = localStorage.getItem("bankid_session");
-    if (sessionData) {
-      const parsed = JSON.parse(sessionData) as UserSession;
-      setSession(parsed);
-      if (parsed.role !== "broker") {
-        router.push("/");
+    const checkSession = async () => {
+      const sessionData = localStorage.getItem("bankid_session");
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData) as UserSession;
+        setSession(parsed);
+        if (parsed.role !== "broker") {
+          router.push("/");
+        }
+        setLoading(false);
+        return;
       }
-    } else {
-      router.push("/");
-    }
+
+      // Fallback: Supabase session check
+      try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (session && session.user.user_metadata.role === "broker") {
+          setSession({ 
+            role: "broker", 
+            user: { 
+              id: session.user.id,
+              name: session.user.user_metadata.name || session.user.email?.split('@')[0],
+              email: session.user.email,
+              phone: session.user.phone,
+              socialNumber: session.user.user_metadata.socialNumber,
+            },
+            accessToken: session.access_token,
+            loginTime: Date.now()
+          });
+        } else {
+          router.push("/");
+        }
+      } catch (err: any) {
+        console.error("Session check error:", err.message);
+        setSessionError(err.message);
+        router.push("/");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
   }, [router]);
 
   useEffect(() => {
@@ -99,6 +134,8 @@ export default function VerifyPage() {
     }
   };
 
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading session...</div>;
+  if (sessionError) return <div className="min-h-screen flex items-center justify-center">Error: {sessionError}</div>;
   if (!session || session.role !== "broker") {
     return <div className="min-h-screen flex items-center justify-center">Loading or unauthorized...</div>;
   }
