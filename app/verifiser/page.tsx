@@ -47,35 +47,38 @@ export default function VerifyPage() {
 
   // ✅ Session Check (only allow brokers)
   useEffect(() => {
-    const checkSession = async () => {
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error || !data.session) {
-        router.push("/");
-        return;
+  const checkSession = async () => {
+    // ✅ First check localStorage (fast redirect)
+    const stored = localStorage.getItem("bankid_session");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.role === "broker") {
+        setSession(parsed);
+        return; // already broker, no need to call Supabase
       }
+    }
 
-      const user = data.session.user;
-      if (user.user_metadata.role !== "broker") {
-        router.push("/");
-        return;
-      }
+    // ✅ Fallback: check Supabase (e.g., after refresh)
+    const { data } = await supabaseClient.auth.getSession();
+    if (!data.session || data.session.user.user_metadata.role !== "broker") {
+      router.push("/");
+      return;
+    }
 
-      setSession({
-        role: "broker",
-        user: {
-          id: user.id,
-          name: user.user_metadata.name || user.email?.split("@")[0],
-          email: user.email,
-          phone: user.user_metadata.phone,
-          socialNumber: user.user_metadata.socialNumber,
-        },
-        accessToken: data.session.access_token,
-        loginTime: Date.now(),
-      });
-    };
+    setSession({
+      role: "broker",
+      user: {
+        id: data.session.user.id,
+        name: data.session.user.user_metadata.name || data.session.user.email?.split("@")[0],
+        email: data.session.user.email,
+      },
+      accessToken: data.session.access_token,
+      loginTime: Date.now(),
+    });
+  };
 
-    checkSession();
-  }, [router]);
+  checkSession();
+}, [router]);
 
   // ✅ Fetch All Bids
   useEffect(() => {
