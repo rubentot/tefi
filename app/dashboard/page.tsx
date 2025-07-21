@@ -6,15 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
+import { CheckCircle, XCircle, Upload, Info, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useToast } from "@/components/ui/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { addBid, verifyReferenceCode, updateBidApproval } from "@/lib/mockBank";
 import { supabaseClient } from "@/lib/supabase-client";
-export const dynamic = 'force-dynamic';
+
+export const dynamic = "force-dynamic";
 
 interface UserSession {
-  role: string;
+  role: "broker" | "bidder";
   user: {
     id: string;
     name: string;
@@ -28,98 +29,109 @@ interface UserSession {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [session, setSession] = useState<UserSession | null>(null);
   const [bidAmount, setBidAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
+  const [loading, setLoading] = useState(false);
   const [referenceCode, setReferenceCode] = useState("");
-  const [brokerCode, setBrokerCode] = useState("");
-  const [brokerResult, setBrokerResult] = useState<{ valid: boolean; approved?: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
+  const [maxFinancing, setMaxFinancing] = useState<number | null>(null);
+  const [detectedName, setDetectedName] = useState<string>("");
   const isMobile = useIsMobile();
 
-useEffect(() => {
-  console.log("Starting session check...");
-  const { data: listener } = supabaseClient.auth.onAuthStateChange(
-    async (_event, supabaseSession) => {
-      if (!supabaseSession) {
-        setSession(null);
+  // ✅ Session Check
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error || !data.session) {
         router.push("/");
         return;
       }
 
-      const isBroker = supabaseSession.user.user_metadata.role === "broker";
+      const user = data.session.user;
+      const role = user.user_metadata.role;
 
-      // Redirect brokers immediately
-      if (isBroker) {
-        console.log("Broker detected, redirecting to /verifiser...");
+      if (role === "broker") {
         router.push("/verifiser");
-        return; // stop further execution
+        return;
       }
 
       const { data: profile } = await supabaseClient
         .from("profiles")
         .select("*")
-        .eq("user_id", supabaseSession.user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
-      const mockSession: UserSession = {
+      setSession({
         role: "bidder",
         user: {
-          id: supabaseSession.user.id,
-          name:
-            profile?.name ||
-            supabaseSession.user.email?.split("@")[0] ||
-            "Unknown",
-          email: supabaseSession.user.email ?? "",
+          id: user.id,
+          name: profile?.name || user.email?.split("@")[0] || "Unknown",
+          email: user.email ?? "",
           phone: profile?.phone ?? "",
           socialNumber: profile?.social_number ?? "",
         },
-        accessToken: supabaseSession.access_token,
+        accessToken: data.session.access_token,
         loginTime: Date.now(),
-      };
+      });
+    };
 
-      localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-      setSession(mockSession);
-    }
-  );
+    checkSession();
+  }, [router]);
 
-  return () => listener.subscription.unsubscribe();
-}, [router]);
-
-
+  // ✅ Upload & Verify Finansieringsbevis
   const handleVerifyAndBid = async () => {
-    if (!file || !session || !bidAmount) return;
-    setVerificationStatus("verifying");
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("expectedName", session.user.name);
-    formData.append("bidAmount", bidAmount);
-
-    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-    const verifyData = await verifyRes.json();
-
-    if (verifyData.success) {
-      const code = await addBid(session, parseFloat(bidAmount), "property1");
-      setReferenceCode(code);
-      setVerificationStatus("success");
-    } else {
-      setVerificationStatus("error");
+    if (!file || !session || !bidAmount) {
+      toast({ title: "Manglende data", description: "Last opp dokument og fyll inn budbeløp.", variant: "destructive" });
+      return;
     }
-  };
 
-  const handleBrokerVerify = async () => {
-    const result = await verifyReferenceCode(brokerCode);
-    setBrokerResult(result);
-  };
+    setLoading(true);
 
-  const handleApprove = async (code: string, approved: boolean) => {
-    await updateBidApproval(code, approved);
-    setBrokerResult(prev => prev ? { ...prev, approved } : null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("expectedName", session.user.name);
+      formData.append("bidAmount", bidAmount);
+      formData.append("userId", session.user.id);
+
+      const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
+      const verifyData = await verifyRes.json();
+
+      if (verifyData.success) {
+        setReferenceCode(verifyData.referenceCode);
+        setMaxFinancing(verifyData.maxFinancing);
+        setDetectedName(verifyData.detectedName);
+
+        toast({
+          title: "Bud bekreftet!",
+          description: `Referansekode: ${verifyData.referenceCode}`,
+        });
+      } else {
+        toast({
+          title: "Verifisering feilet",
+          description: verifyData.error || "Dokumentet kunne ikke bekreftes.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Bid verification failed:", err);
+      toast({
+        title: "Feil",
+        description: "Noe gikk galt under verifisering.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!session) {
-    return <div className="min-h-screen flex items-center justify-center">Logg inn for å fortsette...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Logg inn for å fortsette...
+      </div>
+    );
   }
 
   const uploadInstructions = isMobile
@@ -134,75 +146,40 @@ useEffect(() => {
             <CardTitle>Velkommen, {session.user.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {session.role === "bidder" ? (
-              <>
-                <div>
-                  <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
-                  <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
+            <div>
+              <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
+              <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="file">Last opp finansieringsbevis (PDF/bilde)</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>{uploadInstructions}</p>
+                    <p className="mt-2">Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            </div>
+            <Button onClick={handleVerifyAndBid} disabled={loading}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              {loading ? "Verifiserer..." : "Verifiser og send bud"}
+            </Button>
+            {referenceCode && (
+              <div className="bg-green-50 p-4 rounded-lg space-y-2 mt-4">
+                <div className="flex items-center">
+                  <CheckCircle className="mr-2 text-green-600" />
+                  <p>
+                    Verifisert! Referansekode: <strong>{referenceCode}</strong>
+                  </p>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="file">Last opp finansieringsbevis (PDF/bilde)</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p>{uploadInstructions}</p>
-                        <p className="mt-2">Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                  {verificationStatus === "error" && (
-                    <p className="text-sm text-muted-foreground mt-2">Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.</p>
-                  )}
-                </div>
-                <Button onClick={handleVerifyAndBid} disabled={verificationStatus === "verifying"}>
-                  <Upload className="mr-2 h-4 w-4" /> Verifiser og send bud
-                </Button>
-                {verificationStatus === "success" && (
-                  <div className="bg-green-50 p-4 rounded-lg flex items-center">
-                    <CheckCircle className="mr-2 text-green-600" /> Verifisert! Referansekode: {referenceCode} (gyldig i 5 min)
-                  </div>
-                )}
-                {verificationStatus === "error" && (
-                  <div className="bg-red-50 p-4 rounded-lg flex items-center">
-                    <XCircle className="mr-2 text-red-600" /> Verifisering feilet. Prøv igjen.
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <Label htmlFor="brokerCode">Skriv inn referansekode</Label>
-                <Input id="brokerCode" placeholder="Skriv inn referansekode" value={brokerCode} onChange={(e) => setBrokerCode(e.target.value)} />
-                <Button onClick={handleBrokerVerify}>Verifiser</Button>
-                {brokerResult && (
-                  <div className={`p-4 rounded-lg ${brokerResult.valid ? 'bg-green-50' : 'bg-red-50'}`}>
-                    {brokerResult.valid ? <CheckCircle className="mr-2 text-green-600" /> : <XCircle className="mr-2 text-red-600" />}
-                    {brokerResult.valid ? 'Gyldig bud' : 'Ugyldig kode'}
-                    {brokerResult.valid && brokerResult.details && (
-                      <div className="mt-2 text-sm">
-                        <p><strong>Navn:</strong> {brokerResult.details.name}</p>
-                        <p><strong>E-post:</strong> {brokerResult.details.email}</p>
-                        <p><strong>Telefon:</strong> {brokerResult.details.phone}</p>
-                        <p><strong>Bankkontakt:</strong> {brokerResult.details.bankContact}</p>
-                        <div className="mt-4 flex gap-4">
-                          <Button variant="default" onClick={() => handleApprove(brokerCode, true)}>
-                            Godkjenn
-                          </Button>
-                          <Button variant="destructive" onClick={() => handleApprove(brokerCode, false)}>
-                            Avvis
-                          </Button>
-                        </div>
-                        {brokerResult.approved !== undefined && (
-                          <p className="mt-2"><strong>Status:</strong> {brokerResult.approved ? 'Godkjent' : 'Avvist'}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
+                <p><strong>Finansiering:</strong> {maxFinancing?.toLocaleString("no-NO")} kr</p>
+                <p><strong>Navn funnet i dokument:</strong> {detectedName}</p>
+              </div>
             )}
           </CardContent>
         </Card>

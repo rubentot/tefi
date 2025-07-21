@@ -1,104 +1,91 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { writeFile, unlink } from "fs/promises"
-import path from "path"
-import { v4 as uuidv4 } from "uuid"
-import { createWorker } from "tesseract.js"
-import { extractText, getDocumentProxy } from "unpdf"
-import { addProof } from "@/lib/mockBank"; // For storing extracted limit
-import os from "os";
+import { NextRequest, NextResponse } from "next/server";
+import Tesseract from "tesseract.js";
+import pdfParse from "pdf-parse";
+import { supabaseClient } from "@/lib/supabase-client";
+import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+import path from "path";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const formData = await req.formData()
-  const file = formData.get("file") as File
-  const expectedName = formData.get("expectedName") as string
-  const bidAmount = parseFloat(formData.get("bidAmount") as string) // New: Send bid from frontend for comparison
-
-  if (!file || isNaN(bidAmount)) {
-    return NextResponse.json({ success: false, message: "Ingen fil eller budbeløp mottatt" }, { status: 400 })
-  }
-
-  if (!expectedName) {
-    return NextResponse.json({ success: false, message: "Mangler forventet navn" }, { status: 400 })
-  }
-
   try {
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const formData = await req.formData();
+    const file = formData.get("file") as File;
+    const expectedName = formData.get("expectedName") as string;
+    const bidAmount = parseFloat(formData.get("bidAmount") as string);
+    const userId = formData.get("userId") as string;
 
-    // Save file temporarily
-    const tmpPath = path.join(os.tmpdir(), `${uuidv4()}-${file.name}`)
-    await writeFile(tmpPath, buffer)
+    if (!file || !expectedName || !bidAmount || !userId) {
+      return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 });
+    }
 
-    let extractedText = ""
+    // Save temp file (needed for tesseract/pdf-parse)
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const tempDir = path.join("/tmp", `upload-${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    const filePath = path.join(tempDir, file.name);
+    fs.writeFileSync(filePath, buffer);
 
-    if (file.name.toLowerCase().endsWith(".pdf")) {
-      console.log("📄 Processing PDF file...")
-      const pdf = await getDocumentProxy(new Uint8Array(buffer))
-      const { text } = await extractText(pdf, { mergePages: true })
-      extractedText = text
+    let textContent = "";
+
+    if (file.name.endsWith(".pdf")) {
+      // ✅ Extract text from PDF
+      const pdfData = await pdfParse(buffer);
+      textContent = pdfData.text;
     } else {
-      console.log("🖼️ Processing image file with OCR...")
-      const worker = await createWorker('nor+eng');
-      const { data } = await worker.recognize(tmpPath)
-      extractedText = data.text
-      await worker.terminate()
+      // ✅ OCR for images
+      const ocrResult = await Tesseract.recognize(filePath, "nor"); // Norwegian OCR
+      textContent = ocrResult.data.text;
     }
 
-    await unlink(tmpPath) // Delete file immediately
+    // ✅ Extract financing amount (look for something like "1 500 000" or "1500000")
+    const amountMatch = textContent.match(/(\d{1,3}(?:[\s.,]\d{3})*(?:[.,]\d{1,2})?)/g);
+    const detectedAmounts = amountMatch
+      ?.map((a) => parseInt(a.replace(/[^\d]/g, ""), 10))
+      .filter((n) => n > 50000); // filter plausible amounts
 
-    console.log("📝 Extracted text:", extractedText.substring(0, 200) + "...")
+    const maxFinancing = detectedAmounts ? Math.max(...detectedAmounts) : 0;
 
-    // Clean and normalize text for better matching
-    const normalizedText = extractedText.toLowerCase().replace(/\s+/g, " ")
+    // ✅ Extract name (very naive: just check if expectedName is in text)
+    const detectedName = textContent.includes(expectedName)
+      ? expectedName
+      : textContent.split("\n").find((line) => line.toLowerCase().includes(expectedName.toLowerCase())) || "Ukjent";
 
-    // Name match
-    const nameWords = expectedName.toLowerCase().replace(/\s+/g, " ").split(" ")
-    const nameMatch = nameWords.every((word) => normalizedText.includes(word))
-
-    // Extract loan amount (look for keywords like "godkjent beløp", "låneramme", "finansieringsbevis for kr")
-    const loanKeywords = ["godkjent lånebeløp", "låneramme", "finansieringsbevis for", "beløp kr", "maksimalt lån", "maks lån"];
-    let extractedLoan = 0;
-    const allMatches: number[] = [];
-    for (const keyword of loanKeywords) {
-      const regex = new RegExp(`${keyword}\\s*[:=-]?\\s*([\\d\\s.,]+)\\s*(kr|nok)?`, "gi");
-      let match;
-      while ((match = regex.exec(extractedText)) !== null) {
-        const amountStr = match[1].replace(/\D/g, "");
-        const amount = parseFloat(amountStr);
-        if (!isNaN(amount)) allMatches.push(amount);
-      }
-    }
-    if (allMatches.length > 0) {
-      extractedLoan = Math.max(...allMatches);
+    // ✅ Validation
+    if (maxFinancing === 0 || bidAmount > maxFinancing) {
+      return NextResponse.json({ success: false, error: "Bid exceeds financing" }, { status: 400 });
     }
 
-    const sufficiencyMatch = extractedLoan >= bidAmount;
+    // ✅ Insert into Supabase (bids table)
+    const referenceCode = uuidv4().slice(0, 8).toUpperCase();
+    const { error: insertError } = await supabaseClient.from("bids").insert([
+      {
+        user_id: userId,
+        bid_amount: bidAmount,
+        max_financing_amount: maxFinancing,
+        reference_code: referenceCode,
+        approved: null,
+        real_estate_id: "property1",
+      },
+    ]);
 
-    console.log("🔍 Verification results:", {
-      nameMatch,
-      extractedLoan,
-      sufficiencyMatch,
-      bidAmount,
-    })
-
-    if (nameMatch && sufficiencyMatch) {
-      // Mock userId; in real, from session
-      await addProof('mock-user-id-from-session', extractedLoan); // Store extracted limit for later verifyBid
-      return NextResponse.json({
-        success: true,
-        message: "Finansieringsbevis er verifisert. Lånebeløp er tilstrekkelig.",
-      })
-    } else {
-      let errorMessage = "Verifisering feilet: ";
-      if (!nameMatch) errorMessage += "Navnet stemmer ikke. ";
-      if (!sufficiencyMatch) errorMessage += "Lånebeløp er ikke tilstrekkelig for budet.";
-      return NextResponse.json({ success: false, message: errorMessage })
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      return NextResponse.json({ success: false, error: "DB insert failed" }, { status: 500 });
     }
-  } catch (err: any) {
-    console.error("⛔ Error during file processing:", err)
-    return NextResponse.json(
-      { success: false, message: "Feil under behandling av fil. Prøv igjen eller kontakt support." },
-      { status: 500 }
-    )
+
+    // ✅ Cleanup temp file
+    fs.unlinkSync(filePath);
+
+    return NextResponse.json({
+      success: true,
+      referenceCode,
+      maxFinancing,
+      detectedName,
+    });
+  } catch (err) {
+    console.error("Verify upload error:", err);
+    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
   }
 }
