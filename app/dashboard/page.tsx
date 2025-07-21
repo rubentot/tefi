@@ -37,45 +37,80 @@ export default function DashboardPage() {
   const [brokerResult, setBrokerResult] = useState<{ valid: boolean; approved?: boolean; details?: { name: string; email: string; phone: string; bankContact: string } } | null>(null);
   const isMobile = useIsMobile();
 
-  useEffect(() => {
+ useEffect(() => {
   console.log("Starting session check...");
-  const { data: listener } = supabaseClient.auth.onAuthStateChange(async (_event, supabaseSession) => {
-    if (!supabaseSession) {
-      setSession(null);
-      router.push("/");
-      return;
+
+  const { data: authListener } = supabaseClient.auth.onAuthStateChange(
+    async (_event, supabaseSession) => {
+      if (!supabaseSession) {
+        console.log("No session, redirecting to login...");
+        setSession(null);
+        router.push("/");
+        return;
+      }
+
+      const isBroker = supabaseSession.user.user_metadata.role === "broker";
+
+      // Fetch profile (safe against 406 errors)
+      let { data: profile, error } = await supabaseClient
+        .from("profiles")
+        .select("*")
+        .eq("user_id", supabaseSession.user.id)
+        .maybeSingle();
+
+      if (error) console.error("Profile fetch error:", error);
+
+      // Auto-create profile if it doesn't exist
+      if (!profile) {
+        console.log("Profile not found, creating...");
+        const { data: newProfile, error: insertError } = await supabaseClient
+          .from("profiles")
+          .insert({
+            user_id: supabaseSession.user.id,
+            name: supabaseSession.user.email?.split("@")[0] ?? "Unknown",
+            phone: "",
+            social_number: "",
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("Failed to create profile:", insertError);
+        } else {
+          profile = newProfile;
+        }
+      }
+
+      // Build local session
+      const mockSession: UserSession = {
+        role: isBroker ? "broker" : "bidder",
+        user: {
+          id: supabaseSession.user.id,
+          name:
+            profile?.name ||
+            supabaseSession.user.email?.split("@")[0] ||
+            "Unknown",
+          email: supabaseSession.user.email ?? "",
+          phone: profile?.phone ?? "",
+          socialNumber: profile?.social_number ?? "",
+        },
+        accessToken: supabaseSession.access_token,
+        loginTime: Date.now(),
+      };
+
+      localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+      setSession(mockSession);
+
+      if (isBroker) {
+        console.log("Broker detected, redirecting...");
+        router.push("/verifiser");
+      }
     }
+  );
 
-    const isBroker = supabaseSession.user.user_metadata.role === "broker";
-    const { data: profile, error } = await supabaseClient
-      .from("profiles")
-      .select("*")
-      .eq("user_id", supabaseSession.user.id)
-      .maybeSingle();  // <-- This change
-
-    if (error) console.error("Profile fetch error:", error);  // Log but don't crash
-
-    const mockSession: UserSession = {
-      role: isBroker ? "broker" : "bidder",
-      user: {
-        id: supabaseSession.user.id,
-        name: profile?.name || (supabaseSession.user.email?.split("@")[0] ?? "Unknown"),
-        email: supabaseSession.user.email ?? "",
-        phone: profile?.phone ?? "",
-        socialNumber: profile?.social_number ?? "",
-      },
-      accessToken: supabaseSession.access_token,
-      loginTime: Date.now(),
-    };
-
-    localStorage.setItem("bankid_session", JSON.stringify(mockSession));
-    setSession(mockSession);
-
-    if (isBroker) router.push("/verifiser");
-  });
-
-  return () => listener.subscription.unsubscribe();
+  return () => authListener.subscription.unsubscribe();
 }, [router]);
+
 
   const handleVerifyAndBid = async () => {
     if (!file || !session || !bidAmount) return;
