@@ -2,24 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, XCircle } from "lucide-react";
 import { supabaseClient } from "@/lib/supabase-client";
-import { updateBidApproval } from "@/lib/bids";
+import { updateBidApproval } from "@/lib/bids"; // Make sure this function updates Supabase
 
 export const dynamic = "force-dynamic";
 
 interface UserSession {
-  role: "broker" | "bidder";
+  role: "broker";
   user: {
     id: string;
     name?: string;
     email?: string;
-    phone?: string;
-    socialNumber?: string;
   };
   accessToken: string;
   loginTime: number;
@@ -39,48 +36,47 @@ interface Bid {
 
 export default function VerifyPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [session, setSession] = useState<UserSession | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatingCode, setUpdatingCode] = useState<string | null>(null);
 
-  // ✅ Session Check (only allow brokers)
+  // ✅ Check Broker Session
   useEffect(() => {
-  const checkSession = async () => {
-    // ✅ First check localStorage (fast redirect)
-    const stored = localStorage.getItem("bankid_session");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.role === "broker") {
-        setSession(parsed);
-        return; // already broker, no need to call Supabase
+    const checkSession = async () => {
+      // LocalStorage first (instant)
+      const stored = localStorage.getItem("bankid_session");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.role === "broker") {
+          setSession(parsed);
+          return;
+        }
       }
-    }
 
-    // ✅ Fallback: check Supabase (e.g., after refresh)
-    const { data } = await supabaseClient.auth.getSession();
-    if (!data.session || data.session.user.user_metadata.role !== "broker") {
-      router.push("/");
-      return;
-    }
+      // Fallback: Supabase session restore
+      const { data } = await supabaseClient.auth.getSession();
+      if (!data.session || data.session.user.user_metadata.role !== "broker") {
+        window.location.href = "/";
+        return;
+      }
 
-    setSession({
-      role: "broker",
-      user: {
-        id: data.session.user.id,
-        name: data.session.user.user_metadata.name || data.session.user.email?.split("@")[0],
-        email: data.session.user.email,
-      },
-      accessToken: data.session.access_token,
-      loginTime: Date.now(),
-    });
-  };
+      const user = data.session.user;
+      setSession({
+        role: "broker",
+        user: {
+          id: user.id,
+          name: user.user_metadata.name || user.email?.split("@")[0],
+          email: user.email,
+        },
+        accessToken: data.session.access_token,
+        loginTime: Date.now(),
+      });
+    };
 
-  checkSession();
-}, [router]);
+    checkSession();
+  }, []);
 
-  // ✅ Fetch All Bids
+  // ✅ Fetch All Bids with Bidder Info
   useEffect(() => {
     const fetchBids = async () => {
       setLoading(true);
@@ -121,24 +117,19 @@ export default function VerifyPage() {
         setBids(mapped);
       } catch (err) {
         console.error("Failed to fetch bids:", err);
-        toast({
-          title: "Kunne ikke laste bud",
-          description: "Prøv å laste siden på nytt.",
-          variant: "destructive",
-        });
         setBids([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBids();
-  }, [toast]);
+    if (session?.role === "broker") {
+      fetchBids();
+    }
+  }, [session]);
 
   // ✅ Approve or Reject Bid
   const handleApprove = async (referenceCode: string, approved: boolean) => {
-    setUpdatingCode(referenceCode);
-
     try {
       await updateBidApproval(referenceCode, approved);
       setBids((prev) =>
@@ -146,29 +137,18 @@ export default function VerifyPage() {
           bid.referenceCode === referenceCode ? { ...bid, approved } : bid
         )
       );
-
-      toast({
-        title: approved ? "Bud godkjent" : "Bud avvist",
-        description: `Referansekode: ${referenceCode}`,
-      });
     } catch (err) {
       console.error("Approval update failed:", err);
-      toast({
-        title: "Feil ved oppdatering",
-        description: "Kunne ikke oppdatere budstatus.",
-        variant: "destructive",
-      });
-    } finally {
-      setUpdatingCode(null);
     }
   };
 
+  // ✅ Check if Bid is Gyldig
   const isBidValid = (bid: Bid) => bid.bidAmount <= bid.maxFinancing;
 
   if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Laster inn bud...
+        Laster inn bud...
       </div>
     );
 
@@ -208,14 +188,18 @@ export default function VerifyPage() {
                     <TableCell>{bid.name}</TableCell>
                     <TableCell>{bid.email}</TableCell>
                     <TableCell>{bid.phone}</TableCell>
-                    <TableCell>{bid.bidAmount.toLocaleString("no-NO")}</TableCell>
-                    <TableCell>{bid.maxFinancing.toLocaleString("no-NO")}</TableCell>
+                    <TableCell>{bid.bidAmount.toLocaleString()}</TableCell>
+                    <TableCell>{bid.maxFinancing.toLocaleString()}</TableCell>
                     <TableCell>{bid.referenceCode}</TableCell>
                     <TableCell>
                       {bid.approved === true ? (
-                        <span className="text-green-600 font-semibold">Godkjent</span>
+                        <span className="text-green-600 font-semibold">
+                          Godkjent
+                        </span>
                       ) : bid.approved === false ? (
-                        <span className="text-red-600 font-semibold">Avvist</span>
+                        <span className="text-red-600 font-semibold">
+                          Avvist
+                        </span>
                       ) : isBidValid(bid) ? (
                         <div className="flex items-center text-green-600">
                           <CheckCircle className="mr-1 h-4 w-4" /> Gyldig
@@ -232,26 +216,21 @@ export default function VerifyPage() {
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() => handleApprove(bid.referenceCode, true)}
-                            disabled={!isBidValid(bid) || updatingCode === bid.referenceCode}
+                            onClick={() =>
+                              handleApprove(bid.referenceCode, true)
+                            }
+                            disabled={!isBidValid(bid)}
                           >
-                            {updatingCode === bid.referenceCode ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Godkjenn"
-                            )}
+                            Godkjenn
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleApprove(bid.referenceCode, false)}
-                            disabled={updatingCode === bid.referenceCode}
+                            onClick={() =>
+                              handleApprove(bid.referenceCode, false)
+                            }
                           >
-                            {updatingCode === bid.referenceCode ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Avvis"
-                            )}
+                            Avvis
                           </Button>
                         </div>
                       )}

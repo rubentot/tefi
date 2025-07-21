@@ -7,39 +7,46 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabaseClient } from "@/lib/supabase-client"; // ✅ Make sure this exists
+import { supabaseClient } from "@/lib/supabase-client";
 
 export default function HomePage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // ✅ State for broker login
   const [brokerEmail, setBrokerEmail] = useState("");
   const [brokerPassword, setBrokerPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Placeholder for BankID (implement NextAuth later)
+  // ✅ Placeholder for BankID Login (NextAuth will replace this)
   const handleBankIDLogin = async () => {
     toast({ title: "BankID login", description: "Redirecting to BankID..." });
-    // Implement NextAuth Signicat here
     router.push("/dashboard");
   };
 
-  // ✅ Broker Login
+  // ✅ Broker Login Flow
   const handleBrokerLogin = async () => {
     if (!brokerEmail || !brokerPassword) {
-      toast({ title: "Feil", description: "Fyll ut e-post og passord.", variant: "destructive" });
+      toast({
+        title: "Feil",
+        description: "Fyll ut e-post og passord.",
+        variant: "destructive",
+      });
       return;
     }
 
     setLoading(true);
+
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email: brokerEmail,
       password: brokerPassword,
     });
 
     if (error) {
-      toast({ title: "Innlogging feilet", description: error.message, variant: "destructive" });
+      toast({
+        title: "Innlogging feilet",
+        description: error.message,
+        variant: "destructive",
+      });
       setLoading(false);
       return;
     }
@@ -56,7 +63,6 @@ export default function HomePage() {
       return;
     }
 
-    // ✅ Save session to localStorage for instant redirect later
     localStorage.setItem(
       "bankid_session",
       JSON.stringify({
@@ -71,49 +77,67 @@ export default function HomePage() {
       })
     );
 
-    toast({ title: "Innlogging vellykket", description: "Logger inn som megler..." });
-    window.location.href = "/verifiser"; // ✅ Hard redirect to ensure it works on Vercel
+    toast({
+      title: "Innlogging vellykket",
+      description: "Logger inn som megler...",
+    });
+
+    window.location.href = "/verifiser"; // ✅ Hard redirect works on Vercel
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8 flex justify-center items-center">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle className="text-center">Velkommen til Tefi</CardTitle>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex justify-center items-center p-4">
+      <Card className="max-w-md w-full shadow-lg rounded-2xl">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">Velkommen til Tefi</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-8">
           {/* ✅ Bidder Login */}
           <div className="space-y-2">
-            <Button className="w-full" onClick={handleBankIDLogin}>
+            <Button className="w-full py-6 text-lg" onClick={handleBankIDLogin}>
               Logg inn med BankID
             </Button>
+            <p className="text-xs text-gray-500 text-center">
+              Budgivere logger inn med BankID
+            </p>
           </div>
 
-          <div className="border-t pt-4">
-            <p className="text-sm text-gray-500 text-center mb-4">Megler login</p>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-post</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="megler@example.com"
-                value={brokerEmail}
-                onChange={(e) => setBrokerEmail(e.target.value)}
-              />
+          {/* Divider */}
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-gray-300"></div>
+            <span className="mx-2 text-gray-500 text-sm">eller</span>
+            <div className="flex-grow border-t border-gray-300"></div>
+          </div>
 
-              <Label htmlFor="password">Passord</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••"
-                value={brokerPassword}
-                onChange={(e) => setBrokerPassword(e.target.value)}
-              />
+          {/* ✅ Broker Login */}
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 text-center">Megler login</p>
 
-              <Button className="w-full mt-4" onClick={handleBrokerLogin} disabled={loading}>
-                {loading ? "Logger inn..." : "Logg inn som megler"}
-              </Button>
-            </div>
+            <Label htmlFor="email">E-post</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="megler@example.com"
+              value={brokerEmail}
+              onChange={(e) => setBrokerEmail(e.target.value)}
+            />
+
+            <Label htmlFor="password">Passord</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••"
+              value={brokerPassword}
+              onChange={(e) => setBrokerPassword(e.target.value)}
+            />
+
+            <Button
+              className="w-full mt-2 py-6 text-lg"
+              onClick={handleBrokerLogin}
+              disabled={loading}
+            >
+              {loading ? "Logger inn..." : "Logg inn som megler"}
+            </Button>
           </div>
         </CardContent>
       </Card>

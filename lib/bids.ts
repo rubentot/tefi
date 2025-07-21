@@ -56,8 +56,6 @@ export async function updateBidApproval(referenceCode: string, approved: boolean
     .update({ approved })
     .eq("reference_code", referenceCode);
 
-  if (error) {
-    console.error("Error updating approval:", error.message);
-    throw error;
-  }
+  if (error) throw error;
 }
+
