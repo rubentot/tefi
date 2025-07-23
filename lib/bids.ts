@@ -1,55 +1,104 @@
 import { supabaseClient } from "@/lib/supabase-client";
+import { v4 as uuidv4 } from "uuid";
 
+/** ✅ Add Bid (called by Bidder Dashboard) */
 export async function addBid(
   userId: string,
-  amount: number,
-  realEstateId: string,
-  maxFinancing: number
-) {
-  const referenceCode = crypto.randomUUID().split("-")[0];
+  bidAmount: number,
+  maxFinancingAmount: number,
+  realEstateId: string
+): Promise<string> {
+  const referenceCode = uuidv4().split("-")[0].toUpperCase(); // Short unique code
+
   const { error } = await supabaseClient.from("bids").insert([
     {
       user_id: userId,
-      bid_amount: amount,
+      bid_amount: bidAmount,
+      max_financing_amount: maxFinancingAmount,
       reference_code: referenceCode,
       real_estate_id: realEstateId,
-      max_financing_amount: maxFinancing, // NEW FIELD
     },
   ]);
 
-  if (error) {
-    console.error("Error adding bid:", error.message);
-    throw error;
-  }
+  if (error) throw error;
   return referenceCode;
 }
 
+/** ✅ Get All Bids (called by Broker Dashboard) */
+export async function getAllBids(realEstateId: string) {
+  const { data, error } = await supabaseClient
+    .from("bids")
+    .select(
+      `
+      id,
+      user_id,
+      bid_amount,
+      max_financing_amount,
+      reference_code,
+      approved,
+      profiles (
+        name,
+        email,
+        phone
+      )
+    `
+    )
+    .eq("real_estate_id", realEstateId)
+    .order("inserted_at", { ascending: false });
 
-/** Verify a reference code */
+  if (error) throw error;
+
+  return data.map((b: any) => {
+    const profile = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
+    return {
+      id: b.id,
+      userId: b.user_id,
+      name: profile?.name || "Ukjent",
+      email: profile?.email || "-",
+      phone: profile?.phone || "-",
+      bidAmount: b.bid_amount,
+      maxFinancing: b.max_financing_amount,
+      referenceCode: b.reference_code,
+      approved: b.approved,
+    };
+  });
+}
+
+/** ✅ Verify Reference Code (Broker enters a code manually) */
 export async function verifyReferenceCode(referenceCode: string) {
   const { data, error } = await supabaseClient
     .from("bids")
-    .select("*")
+    .select(
+      `
+      bid_amount,
+      max_financing_amount,
+      approved,
+      profiles (
+        name,
+        email,
+        phone
+      )
+    `
+    )
     .eq("reference_code", referenceCode)
     .maybeSingle();
 
-  if (error || !data) {
-    return { valid: false };
-  }
+  if (error || !data) return { valid: false };
+
+  const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
 
   return {
     valid: true,
     approved: data.approved,
     details: {
-      name: "Mock Name", // later you can join with profiles
-      email: "mock@example.com",
-      phone: "00000000",
-      bankContact: "Mock Bank Contact",
+      name: profile?.name || "Ukjent",
+      email: profile?.email || "-",
+      phone: profile?.phone || "-",
     },
   };
 }
 
-/** Approve or reject a bid */
+/** ✅ Approve or Reject Bid (Broker action) */
 export async function updateBidApproval(referenceCode: string, approved: boolean) {
   const { error } = await supabaseClient
     .from("bids")
@@ -57,5 +106,5 @@ export async function updateBidApproval(referenceCode: string, approved: boolean
     .eq("reference_code", referenceCode);
 
   if (error) throw error;
+  return true;
 }
-
