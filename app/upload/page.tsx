@@ -83,6 +83,7 @@ export default function UploadPage() {
     setApiMessage("");
 
     const formData = new FormData();
+    formData.append("userId", session.user.id);
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
     formData.append("bidAmount", session.bidAmount.toString());

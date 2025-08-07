@@ -15,8 +15,9 @@ export async function POST(req: NextRequest) {
     const expectedName = formData.get("expectedName") as string;
     const bidAmount = parseFloat(formData.get("bidAmount") as string);
     const userId = formData.get("userId") as string;
+    const propertyId = formData.get("propertyId") as string || "unknown_property";
 
-    if (!file || !expectedName || !bidAmount || !userId) {
+    if (!file || !expectedName || !bidAmount || !userId || !propertyId) {
       return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 });
     }
 
@@ -53,8 +54,11 @@ export async function POST(req: NextRequest) {
       : textContent.split("\n").find((line) => line.toLowerCase().includes(expectedName.toLowerCase())) || "Ukjent";
 
     // ✅ Validation
-    if (maxFinancing === 0 || bidAmount > maxFinancing) {
-      return NextResponse.json({ success: false, error: "Bid exceeds financing" }, { status: 400 });
+    if (maxFinancing === 0) {
+      return NextResponse.json({ success: false, error: "Kunne ikke finne finansieringsbeløp i dokumentet." }, { status: 400 });
+    }
+    if (bidAmount > maxFinancing) {
+      return NextResponse.json({ success: false, error: "Budet overstiger finansieringsbeviset." }, { status: 400 });
     }
 
     // ✅ Insert into Supabase (bids table)
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest) {
         max_financing_amount: maxFinancing,
         reference_code: referenceCode,
         approved: null,
-        real_estate_id: "property1",
+        real_estate_id: propertyId, // <-- use propertyId here
       },
     ]);
 
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
       maxFinancing,
       detectedName,
     });
-  } catch (err) {
+} catch (err) {
     console.error("Verify upload error:", err);
     return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
   }

@@ -7,9 +7,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle } from "lucide-react";
 import { supabaseClient } from "@/lib/supabase-client";
-import { updateBidApproval } from "@/lib/bids"; // Make sure this function updates Supabase
+import { updateBidApproval } from "@/lib/bids";
 
 export const dynamic = "force-dynamic";
+
+const propertyMap: Record<string, string> = {
+  property1: "Enebolig på Majorstuen",
+  property2: "Leilighet på Grünerløkka",
+  property3: "Rekkehus på Bekkestua",
+};
 
 interface UserSession {
   role: "broker";
@@ -32,6 +38,7 @@ interface Bid {
   maxFinancing: number;
   referenceCode: string;
   approved?: boolean;
+  realEstateId: string;
 }
 
 export default function VerifyPage() {
@@ -40,10 +47,8 @@ export default function VerifyPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Check Broker Session
   useEffect(() => {
     const checkSession = async () => {
-      // LocalStorage first (instant)
       const stored = localStorage.getItem("bankid_session");
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -52,14 +57,11 @@ export default function VerifyPage() {
           return;
         }
       }
-
-      // Fallback: Supabase session restore
       const { data } = await supabaseClient.auth.getSession();
       if (!data.session || data.session.user.user_metadata.role !== "broker") {
         window.location.href = "/";
         return;
       }
-
       const user = data.session.user;
       setSession({
         role: "broker",
@@ -72,11 +74,9 @@ export default function VerifyPage() {
         loginTime: Date.now(),
       });
     };
-
     checkSession();
   }, []);
 
-  // ✅ Fetch All Bids with Bidder Info
   useEffect(() => {
     const fetchBids = async () => {
       setLoading(true);
@@ -91,6 +91,7 @@ export default function VerifyPage() {
             max_financing_amount,
             reference_code,
             approved,
+            real_estate_id,
             profiles (
               name,
               email,
@@ -112,6 +113,7 @@ export default function VerifyPage() {
           maxFinancing: b.max_financing_amount,
           referenceCode: b.reference_code,
           approved: b.approved,
+          realEstateId: b.real_estate_id,
         }));
 
         setBids(mapped);
@@ -128,7 +130,6 @@ export default function VerifyPage() {
     }
   }, [session]);
 
-  // ✅ Approve or Reject Bid
   const handleApprove = async (referenceCode: string, approved: boolean) => {
     try {
       await updateBidApproval(referenceCode, approved);
@@ -142,8 +143,14 @@ export default function VerifyPage() {
     }
   };
 
-  // ✅ Check if Bid is Gyldig
   const isBidValid = (bid: Bid) => bid.bidAmount <= bid.maxFinancing;
+
+  // --- Group bids by property ---
+  const groupedBids: Record<string, Bid[]> = {};
+  bids.forEach((bid) => {
+    if (!groupedBids[bid.realEstateId]) groupedBids[bid.realEstateId] = [];
+    groupedBids[bid.realEstateId].push(bid);
+  });
 
   if (loading)
     return (
@@ -169,76 +176,83 @@ export default function VerifyPage() {
           {bids.length === 0 ? (
             <p className="text-center">Ingen aktive bud enda.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Navn</TableHead>
-                  <TableHead>E-post</TableHead>
-                  <TableHead>Telefon</TableHead>
-                  <TableHead>Bud (kr)</TableHead>
-                  <TableHead>Finansiering (kr)</TableHead>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Handlinger</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {bids.map((bid) => (
-                  <TableRow key={bid.id}>
-                    <TableCell>{bid.name}</TableCell>
-                    <TableCell>{bid.email}</TableCell>
-                    <TableCell>{bid.phone}</TableCell>
-                    <TableCell>{bid.bidAmount.toLocaleString()}</TableCell>
-                    <TableCell>{bid.maxFinancing.toLocaleString()}</TableCell>
-                    <TableCell>{bid.referenceCode}</TableCell>
-                    <TableCell>
-                      {bid.approved === true ? (
-                        <span className="text-green-600 font-semibold">
-                          Godkjent
-                        </span>
-                      ) : bid.approved === false ? (
-                        <span className="text-red-600 font-semibold">
-                          Avvist
-                        </span>
-                      ) : isBidValid(bid) ? (
-                        <div className="flex items-center text-green-600">
-                          <CheckCircle className="mr-1 h-4 w-4" /> Gyldig
-                        </div>
-                      ) : (
-                        <div className="flex items-center text-red-600">
-                          <XCircle className="mr-1 h-4 w-4" /> Ikke gyldig
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {bid.approved === undefined && (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() =>
-                              handleApprove(bid.referenceCode, true)
-                            }
-                            disabled={!isBidValid(bid)}
-                          >
-                            Godkjenn
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() =>
-                              handleApprove(bid.referenceCode, false)
-                            }
-                          >
-                            Avvis
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            Object.entries(groupedBids).map(([propertyId, propertyBids]) => (
+              <div key={propertyId} className="mb-10">
+                <h2 className="text-xl font-bold mb-2">
+                  {propertyMap[propertyId] || propertyId}
+                </h2>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Navn</TableHead>
+                      <TableHead>E-post</TableHead>
+                      <TableHead>Telefon</TableHead>
+                      <TableHead>Bud (kr)</TableHead>
+                      <TableHead>Finansiering (kr)</TableHead>
+                      <TableHead>Kode</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Handlinger</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {propertyBids.map((bid) => (
+                      <TableRow key={bid.id}>
+                        <TableCell>{bid.name}</TableCell>
+                        <TableCell>{bid.email}</TableCell>
+                        <TableCell>{bid.phone}</TableCell>
+                        <TableCell>{bid.bidAmount.toLocaleString()}</TableCell>
+                        <TableCell>{bid.maxFinancing.toLocaleString()}</TableCell>
+                        <TableCell>{bid.referenceCode}</TableCell>
+                        <TableCell>
+                          {bid.approved === true ? (
+                            <span className="text-green-600 font-semibold">
+                              Godkjent
+                            </span>
+                          ) : bid.approved === false ? (
+                            <span className="text-red-600 font-semibold">
+                              Avvist
+                            </span>
+                          ) : isBidValid(bid) ? (
+                            <div className="flex items-center text-green-600">
+                              <CheckCircle className="mr-1 h-4 w-4" /> Gyldig
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-red-600">
+                              <XCircle className="mr-1 h-4 w-4" /> Ikke gyldig
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {bid.approved === undefined && (
+                            <div className="flex gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() =>
+                                  handleApprove(bid.referenceCode, true)
+                                }
+                                disabled={!isBidValid(bid)}
+                              >
+                                Godkjenn
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() =>
+                                  handleApprove(bid.referenceCode, false)
+                                }
+                              >
+                                Avvis
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>

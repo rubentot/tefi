@@ -44,6 +44,7 @@ export default function PersonalInfoPage() {
   const [secondSocialNumber, setSecondSocialNumber] = useState("");
   const [secondAddress, setSecondAddress] = useState("");
   const [confirmInfo, setConfirmInfo] = useState(false);
+  const [bidAmount, setBidAmount] = useState(""); // <-- Add bid amount state
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -62,6 +63,8 @@ export default function PersonalInfoPage() {
       setEmail(parsed.user.email || "");
       setPhone(parsed.user.phone || "");
       setSocialNumber(parsed.user.socialNumber || "");
+      // Restore bidAmount if present
+      if (parsed.bidAmount) setBidAmount(parsed.bidAmount);
       return;
     }
 
@@ -89,6 +92,7 @@ export default function PersonalInfoPage() {
             setEmail(data.sessionData.user.email || "");
             setPhone(data.sessionData.user.phone || "");
             setSocialNumber(data.sessionData.user.socialNumber || "");
+            if (data.sessionData.bidAmount) setBidAmount(data.sessionData.bidAmount);
             router.replace("/personal-info");
           } else {
             console.error("Login failed:", data);
@@ -109,6 +113,10 @@ export default function PersonalInfoPage() {
       alert("Vennligst bekreft at opplysningene er korrekte.");
       return;
     }
+    if (!bidAmount || isNaN(Number(bidAmount)) || Number(bidAmount) <= 0) {
+      alert("Vennligst oppgi et gyldig budbeløp.");
+      return;
+    }
 
     if (session) {
       const updatedSession = {
@@ -122,6 +130,7 @@ export default function PersonalInfoPage() {
           address,
         },
         bidType,
+        bidAmount, // <-- Store bid amount in session
         secondBidder: addSecondBidder
           ? {
               name: secondName,
@@ -206,6 +215,19 @@ export default function PersonalInfoPage() {
                 <Label htmlFor="address">Adresse</Label>
                 <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} />
               </div>
+            </div>
+
+            {/* Bid Amount Field */}
+            <div>
+              <Label htmlFor="bidAmount">Bud (kr)</Label>
+              <Input
+                id="bidAmount"
+                type="number"
+                min={0}
+                value={bidAmount}
+                onChange={(e) => setBidAmount(e.target.value)}
+                required
+              />
             </div>
 
             {/* Second bidder toggle */}
