@@ -8,8 +8,8 @@ export const authOptions: NextAuthOptions = {
       type: "oauth",
       wellKnown: "https://api.signicat.com/auth/open/.well-known/openid-configuration",
       authorization: { params: { scope: "openid profile email" } },
-      clientId: process.env.BANKID_CLIENT_ID,
-      clientSecret: process.env.BANKID_CLIENT_SECRET,
+      clientId: process.env.SIGNICAT_CLIENT_ID,
+      clientSecret: process.env.SIGNICAT_CLIENT_SECRET,
       profile(profile) {
         return {
           id: profile.sub,
