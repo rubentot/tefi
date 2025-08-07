@@ -28,6 +28,12 @@ interface UserSession {
   loginTime: number;
 }
 
+interface Profile {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
 interface Bid {
   id: string;
   userId: string;
@@ -41,11 +47,23 @@ interface Bid {
   realEstateId: string;
 }
 
+interface BidResponse {
+  id: string;
+  user_id: string;
+  bid_amount: number;
+  max_financing_amount: number;
+  reference_code: string;
+  approved: boolean | null;
+  real_estate_id: string;
+  profiles: Profile | null;
+}
+
 export default function VerifyPage() {
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -80,6 +98,7 @@ export default function VerifyPage() {
   useEffect(() => {
     const fetchBids = async () => {
       setLoading(true);
+      setError(null);
       try {
         const { data, error } = await supabaseClient
           .from("bids")
@@ -92,7 +111,7 @@ export default function VerifyPage() {
             reference_code,
             approved,
             real_estate_id,
-            profiles (
+            profiles!bids_user_id_fkey (
               name,
               email,
               phone
@@ -103,7 +122,7 @@ export default function VerifyPage() {
 
         if (error) throw error;
 
-        const mapped = data.map((b: any) => ({
+        const mapped = (data as BidResponse[]).map((b) => ({
           id: b.id,
           userId: b.user_id,
           name: b.profiles?.name || "Ukjent",
@@ -118,7 +137,9 @@ export default function VerifyPage() {
 
         setBids(mapped);
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         console.error("Failed to fetch bids:", err);
+        setError(`Kunne ikke hente bud: ${errorMessage}`);
         setBids([]);
       } finally {
         setLoading(false);
@@ -127,6 +148,66 @@ export default function VerifyPage() {
 
     if (session?.role === "broker") {
       fetchBids();
+
+      // Set up Supabase Realtime subscription
+      const channel = supabaseClient
+        .channel("bids-channel")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "bids" },
+          async (payload) => {
+            console.log("New bid inserted:", payload);
+            try {
+              const { data, error } = await supabaseClient
+                .from("bids")
+                .select(
+                  `
+                  id,
+                  user_id,
+                  bid_amount,
+                  max_financing_amount,
+                  reference_code,
+                  approved,
+                  real_estate_id,
+                  profiles!bids_user_id_fkey (
+                    name,
+                    email,
+                    phone
+                  )
+                `
+                )
+                .eq("id", payload.new.id)
+                .single();
+
+              if (error) throw error;
+
+              const newBid: Bid = {
+                id: data.id,
+                userId: data.user_id,
+                name: data.profiles?.name || "Ukjent",
+                email: data.profiles?.email || "-",
+                phone: data.profiles?.phone || "-",
+                bidAmount: data.bid_amount,
+                maxFinancing: data.max_financing_amount,
+                referenceCode: data.reference_code,
+                approved: data.approved,
+                realEstateId: data.real_estate_id,
+              };
+
+              setBids((prev) => [newBid, ...prev]);
+            } catch (err) {
+              const errorMessage = err instanceof Error ? err.message : String(err);
+              console.error("Error fetching new bid:", err);
+              setError(`Kunne ikke hente nytt bud: ${errorMessage}`);
+            }
+          }
+        )
+        .subscribe();
+
+      // Cleanup subscription on unmount
+      return () => {
+        supabaseClient.removeChannel(channel);
+      };
     }
   }, [session]);
 
@@ -139,13 +220,15 @@ export default function VerifyPage() {
         )
       );
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       console.error("Approval update failed:", err);
+      setError(`Kunne ikke oppdatere budstatus: ${errorMessage}`);
     }
   };
 
   const isBidValid = (bid: Bid) => bid.bidAmount <= bid.maxFinancing;
 
-  // --- Group bids by property ---
+  // Group bids by property
   const groupedBids: Record<string, Bid[]> = {};
   bids.forEach((bid) => {
     if (!groupedBids[bid.realEstateId]) groupedBids[bid.realEstateId] = [];
@@ -173,6 +256,7 @@ export default function VerifyPage() {
           <CardTitle>Megler Dashboard – Budoversikt</CardTitle>
         </CardHeader>
         <CardContent>
+          {error && <p className="text-red-600 mb-4">{error}</p>}
           {bids.length === 0 ? (
             <p className="text-center">Ingen aktive bud enda.</p>
           ) : (
