@@ -1,13 +1,12 @@
-import webpack from 'webpack';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Your other config options here...
+  experimental: {
+    serverComponentsExternalPackages: ['pdf2json', 'tesseract.js'],
+  },
   webpack: (config, { isServer }) => {
-    // Example: Add a webpack plugin
-    config.plugins.push(new webpack.DefinePlugin({
-      'process.env.SOME_VAR': JSON.stringify('value'),
-    }));
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'pdf2json', 'tesseract.js'];
+    }
     return config;
   },
 };
