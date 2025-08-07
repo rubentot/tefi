@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,31 +23,26 @@ export default function HomePage() {
   const [brokerPassword, setBrokerPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ BankID Login (NextAuth Signicat)
- // ✅ BankID Login (NextAuth Signicat)
-const handleBankIDLogin = async () => {
-  console.log("✅ BankID login button clicked");
-  toast({ title: "BankID login", description: "Sender deg til BankID..." });
+  const handleBankIDLogin = async () => {
+    toast({ title: "BankID login", description: "Sender deg til BankID..." });
 
-  try {
-    const result = await signIn("signicat", {
-      callbackUrl: "/personal-info", // ✅ Redirect bidders here
-      redirect: true,
-    });
-    console.log("BankID signIn result:", result);
-  } catch (err) {
-    console.error("BankID login error:", err);
-    toast({
-      title: "Feil",
-      description: "Kunne ikke starte BankID login.",
-      variant: "destructive",
-    });
-  }
-};
+    try {
+      const result = await signIn("signicat", {
+        callbackUrl: "/personal-info",
+        redirect: true,
+      });
+      console.log("BankID signIn result:", result);
+    } catch (err) {
+      console.error("BankID login error:", err);
+      toast({
+        title: "Feil",
+        description: "Kunne ikke starte BankID login.",
+        variant: "destructive",
+      });
+    }
+  };
 
-  // ✅ Broker Login (Supabase)
   const handleBrokerLogin = async () => {
-    console.log("✅ Broker login button clicked");
     if (!brokerEmail || !brokerPassword) {
       toast({
         title: "Feil",
@@ -55,13 +55,10 @@ const handleBankIDLogin = async () => {
     setLoading(true);
 
     try {
-      console.log("Logging in broker with:", brokerEmail);
       const { data, error } = await supabaseClient.auth.signInWithPassword({
         email: brokerEmail,
         password: brokerPassword,
       });
-
-      console.log("Supabase broker login result:", data, error);
 
       if (error) {
         toast({
@@ -76,7 +73,6 @@ const handleBankIDLogin = async () => {
       const user = data.session?.user;
 
       if (!user || user.user_metadata.role !== "broker") {
-        console.warn("Not a broker or missing role metadata", user);
         await supabaseClient.auth.signOut();
         toast({
           title: "Ingen tilgang",
@@ -87,9 +83,6 @@ const handleBankIDLogin = async () => {
         return;
       }
 
-      console.log("✅ Broker authenticated:", user);
-
-      // ✅ Save to localStorage (instant redirect)
       localStorage.setItem(
         "bankid_session",
         JSON.stringify({
@@ -108,6 +101,7 @@ const handleBankIDLogin = async () => {
         title: "Innlogging vellykket",
         description: "Logger inn som megler...",
       });
+
       window.location.href = "/verifiser";
     } catch (err) {
       console.error("Unexpected broker login error:", err);
@@ -117,24 +111,37 @@ const handleBankIDLogin = async () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8 flex justify-center items-center">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle className="text-center">Velkommen til Tefi</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* ✅ Bidder Login */}
-          <div className="space-y-2">
-            <Button className="w-full" onClick={handleBankIDLogin}>
-              Logg inn med BankID
-            </Button>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Bidder Card */}
+        <Card className="shadow-xl rounded-xl flex flex-col justify-between h-full">
+  <CardHeader>
+    <CardTitle className="text-lg text-center">Budgiver (BankID)</CardTitle>
+  </CardHeader>
+  <CardContent className="flex flex-col justify-between h-full space-y-4">
+    {/* Matching spacing */}
+    <div className="space-y-2">
+      <Label className="text-sm text-muted-foreground">
+        Identifiser deg for å sende bud
+      </Label>
+      <div className="h-[52px] bg-gray-100 border border-gray-200 rounded flex items-center justify-center text-sm text-gray-500">
+        BankID brukes for sikker innlogging
+      </div>
+    </div>
 
-          {/* ✅ Broker Login */}
-          <div className="border-t pt-4">
-            <p className="text-sm text-gray-500 text-center mb-4">
-              Megler login
-            </p>
+    <Button className="w-full mt-2" onClick={handleBankIDLogin}>
+      Logg inn med BankID
+    </Button>
+  </CardContent>
+</Card>
+
+
+        {/* Broker Card */}
+        <Card className="shadow-xl rounded-xl">
+          <CardHeader>
+            <CardTitle className="text-lg text-center">Megler</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-post</Label>
               <Input
@@ -144,7 +151,9 @@ const handleBankIDLogin = async () => {
                 value={brokerEmail}
                 onChange={(e) => setBrokerEmail(e.target.value)}
               />
+            </div>
 
+            <div className="space-y-2">
               <Label htmlFor="password">Passord</Label>
               <Input
                 id="password"
@@ -153,18 +162,18 @@ const handleBankIDLogin = async () => {
                 value={brokerPassword}
                 onChange={(e) => setBrokerPassword(e.target.value)}
               />
-
-              <Button
-                className="w-full mt-4"
-                onClick={handleBrokerLogin}
-                disabled={loading}
-              >
-                {loading ? "Logger inn..." : "Logg inn som megler"}
-              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <Button
+              className="w-full mt-2"
+              onClick={handleBrokerLogin}
+              disabled={loading}
+            >
+              {loading ? "Logger inn..." : "Logg inn som megler"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

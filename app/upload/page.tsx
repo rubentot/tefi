@@ -2,12 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Upload, Info } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import {
+  CheckCircle,
+  XCircle,
+  Upload,
+  Info,
+} from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addBid } from "@/lib/mockBank";
 
@@ -30,7 +45,7 @@ interface UserSession {
     phone: string;
     socialNumber: string;
   };
-  bidAmount?: string; // From bid form
+  bidAmount?: string;
 }
 
 export default function UploadPage() {
@@ -39,7 +54,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
   const [referenceCode, setReferenceCode] = useState("");
-  const [apiMessage, setApiMessage] = useState(""); // For detailed API response
+  const [apiMessage, setApiMessage] = useState("");
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -49,7 +64,7 @@ export default function UploadPage() {
       setSession(parsed);
       if (!parsed?.user) {
         console.error("No user in session");
-        router.push("/"); // Redirect if invalid
+        router.push("/");
         return;
       }
     } else {
@@ -57,86 +72,121 @@ export default function UploadPage() {
     }
   }, [router]);
 
- const handleVerifyAndBid = async () => {
-  if (!file || !session || !session.bidAmount) {
-    setVerificationStatus("error");
-    setApiMessage("Manglende fil, sesjon eller budbeløp.");
-    return;
-  }
-  setVerificationStatus("verifying");
-  setApiMessage(""); // Reset message
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("expectedName", session.user.name);
-  formData.append("bidAmount", session.bidAmount.toString());
-
-  try {
-    const verifyRes = await fetch("/api/verify-upload", { method: "POST", body: formData });
-    const verifyData = await verifyRes.json();
-    console.log("API Response:", verifyData); // Debug log
-
-    if (verifyData.success) {
-      const code = await addBid(session, parseFloat(session.bidAmount), "property1"); // Updated: Added realEstateId
-      setReferenceCode(code);
-      setVerificationStatus("success");
-      setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
-    } else {
+  const handleVerifyAndBid = async () => {
+    if (!file || !session || !session.bidAmount) {
       setVerificationStatus("error");
-      setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
+      setApiMessage("Manglende fil, sesjon eller budbeløp.");
+      return;
     }
-  } catch (err) {
-    console.error("Upload error:", err);
-    setVerificationStatus("error");
-    setApiMessage("Nettverksfeil under opplasting. Prøv igjen.");
-  }
-};
 
-  const uploadInstructions = isMobile 
+    setVerificationStatus("verifying");
+    setApiMessage("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("expectedName", session.user.name);
+    formData.append("bidAmount", session.bidAmount.toString());
+
+    try {
+      const verifyRes = await fetch("/api/verify-upload", {
+        method: "POST",
+        body: formData,
+      });
+      const verifyData = await verifyRes.json();
+      console.log("API Response:", verifyData);
+
+      if (verifyData.success) {
+        const code = await addBid(session, parseFloat(session.bidAmount), "property1");
+        setReferenceCode(code);
+        setVerificationStatus("success");
+        setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
+      } else {
+        setVerificationStatus("error");
+        setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setVerificationStatus("error");
+      setApiMessage("Nettverksfeil under opplasting. Prøv igjen.");
+    }
+  };
+
+  const uploadInstructions = isMobile
     ? "På mobil: Ta skjermbilde i bank-appen og last opp, eller lagre e-post som PDF via 'Del' > 'Lagre som PDF'."
     : "Last ned fra bankens portal/e-post som PDF. Hvis i app: Skriv ut til PDF eller ta skjermbilde og konverter.";
 
   if (!session) {
-    return <div className="min-h-screen flex items-center justify-center">Laster...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">
+        Laster...
+      </div>
+    );
   }
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Last opp finansieringsbevis</CardTitle>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg shadow-lg rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xl font-semibold">
+              Last opp finansieringsbevis
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
+
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <Label htmlFor="file">Last opp bevis (PDF/bilde)</Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    <Info className="h-4 w-4 text-muted-foreground cursor-pointer" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p>{uploadInstructions}</p>
-                    <p className="mt-2">Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Aksepterer PDF, JPG, PNG. Vi sletter filen etter verifisering.
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <Input id="file" type="file" accept=".pdf,.jpg,.png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+
+              <Input
+                id="file"
+                type="file"
+                accept=".pdf,.jpg,.png"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+
               {verificationStatus === "error" && (
-                <p className="text-sm text-muted-foreground mt-2">Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.</p>
+                <p className="text-sm text-destructive mt-2">
+                  Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.
+                </p>
               )}
             </div>
-            <Button onClick={handleVerifyAndBid} disabled={verificationStatus === "verifying"} className="w-full">
-              <Upload className="mr-2 h-4 w-4" /> Verifiser og send bud
+
+            <Button
+              onClick={handleVerifyAndBid}
+              disabled={verificationStatus === "verifying"}
+              className="w-full"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {verificationStatus === "verifying" ? "Verifiserer..." : "Verifiser og send bud"}
             </Button>
+
             {verificationStatus === "success" && (
-              <div className="bg-green-50 p-4 rounded-lg flex items-center">
-                <CheckCircle className="mr-2 text-green-600" /> Verified! {apiMessage} Referansekode: {referenceCode} (gyldig i 5 min)
+              <div className="flex items-start gap-2 p-4 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+                <CheckCircle className="w-5 h-5 mt-0.5" />
+                <div>
+                  {apiMessage} <br />
+                  <span className="font-semibold">Referansekode:</span> {referenceCode} (gyldig i 5 min)
+                </div>
               </div>
             )}
+
             {verificationStatus === "error" && (
-              <div className="bg-red-50 p-4 rounded-lg flex items-center">
-                <XCircle className="mr-2 text-red-600" /> Not Verified. {apiMessage}
+              <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                <XCircle className="w-5 h-5 mt-0.5" />
+                <div>{apiMessage}</div>
               </div>
             )}
           </CardContent>
