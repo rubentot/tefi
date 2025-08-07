@@ -40,23 +40,67 @@ export default function PersonalInfoPage() {
   const [confirmInfo, setConfirmInfo] = useState(false); // Confirmation checkbox
 
  useEffect(() => {
-  const sessionData = localStorage.getItem("bankid_session");
-  if (sessionData) {
-    const parsed = JSON.parse(sessionData);
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get("code");
+  const state = urlParams.get("state");
+
+  // Already have session from localStorage
+  const existingSession = localStorage.getItem("bankid_session");
+  if (existingSession) {
+    const parsed = JSON.parse(existingSession);
     setSession(parsed);
     if (!parsed?.user) {
-      router.push("/"); // Redirect if no user
+      router.push("/");
       return;
     }
-    // Pre-fill from BankID session
     setName(parsed.user.name || "");
     setEmail(parsed.user.email || "");
     setPhone(parsed.user.phone || "");
     setSocialNumber(parsed.user.socialNumber || "");
+    return;
+  }
+
+  // No session, but returned from BankID redirect
+  if (code && state) {
+    const codeVerifier = localStorage.getItem("bankid_code_verifier");
+    const redirect_uri = window.location.origin + "/personal-info";
+
+    if (!codeVerifier) {
+      console.error("Missing PKCE code_verifier");
+      router.push("/");
+      return;
+    }
+
+    fetch("/api/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, state, redirect_uri, code_verifier: codeVerifier }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.sessionData) {
+          localStorage.setItem("bankid_session", JSON.stringify(data.sessionData));
+          setSession(data.sessionData);
+          setName(data.sessionData.user.name || "");
+          setEmail(data.sessionData.user.email || "");
+          setPhone(data.sessionData.user.phone || "");
+          setSocialNumber(data.sessionData.user.socialNumber || "");
+          router.replace("/personal-info"); // clean up URL
+        } else {
+          console.error("Login failed:", data);
+          router.push("/");
+        }
+      })
+      .catch((err) => {
+        console.error("Error during BankID login:", err);
+        router.push("/");
+      });
   } else {
+    // No token, no session, redirect home
     router.push("/");
   }
 }, [router]);
+
 
  const handleProceed = () => {
   if (!confirmInfo) {
