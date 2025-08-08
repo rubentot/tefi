@@ -60,8 +60,8 @@ export default function UploadPage() {
     if (sessionData) {
       const parsed = JSON.parse(sessionData);
       setSession(parsed);
-      if (!parsed?.user) {
-        console.error("No user in session");
+      if (!parsed?.user || !parsed.bidAmount) {
+        console.error("No user or bid amount in session");
         router.push("/");
         return;
       }
@@ -73,7 +73,7 @@ export default function UploadPage() {
   const handleVerifyAndBid = async () => {
     if (!file || !session || !session.bidAmount) {
       setVerificationStatus("error");
-      setApiMessage("Manglende fil, sesjon eller budbeløp.");
+      setApiMessage("Manglende fil eller budbeløp i sesjon.");
       return;
     }
 
@@ -85,7 +85,7 @@ export default function UploadPage() {
     formData.append("userId", session.user.id);
     formData.append("file", file);
     formData.append("expectedName", session.user.name);
-    formData.append("bidAmount", session.bidAmount.toString());
+    formData.append("bidAmount", session.bidAmount);
 
     try {
       const verifyRes = await fetch("/api/verify-upload", {
@@ -102,7 +102,7 @@ export default function UploadPage() {
         setTimeout(() => router.push("/success"), 1000);
       } else {
         setVerificationStatus("error");
-        setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
+        setApiMessage(verifyData.error || "Verifisering feilet. Prøv igjen.");
       }
     } catch (err) {
       console.error("Upload error:", err);
@@ -158,9 +158,10 @@ export default function UploadPage() {
               />
 
               {verificationStatus === "error" && (
-                <p className="text-sm text-destructive mt-2">
-                  Hvis opplasting feilet, prøv å konvertere til PDF først eller kontakt support.
-                </p>
+                <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                  <XCircle className="w-5 h-5 mt-0.5" />
+                  <div>{apiMessage}</div>
+                </div>
               )}
             </div>
 
@@ -176,13 +177,6 @@ export default function UploadPage() {
             {verificationStatus === "success" && (
               <div className="flex items-start gap-2 p-4 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
                 <CheckCircle className="w-5 h-5 mt-0.5" />
-                <div>{apiMessage}</div>
-              </div>
-            )}
-
-            {verificationStatus === "error" && (
-              <div className="flex items-start gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                <XCircle className="w-5 h-5 mt-0.5" />
                 <div>{apiMessage}</div>
               </div>
             )}

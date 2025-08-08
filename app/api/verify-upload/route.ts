@@ -238,7 +238,8 @@ export async function POST(req: NextRequest) {
     }
     if (bidAmount > maxFinancing) {
       console.log("Bid exceeds financing", { bidAmount, maxFinancing });
-      return NextResponse.json({ success: false, error: "Budet overstiger finansieringsbeviset." }, { status: 400 });
+      const errorMessage = `Ditt budbeløp på ${bidAmount.toLocaleString()} kr overstiger det verifiserte finansieringsbeløpet på ${maxFinancing.toLocaleString()} kr. Vennligst juster budet ditt.`;
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
     }
 
     // Insert into Supabase

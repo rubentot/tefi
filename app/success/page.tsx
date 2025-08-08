@@ -27,7 +27,7 @@ export default function SuccessPage() {
             <Button
               variant="default"
               className="w-full sm:w-auto"
-              onClick={() => router.push("/upload")}
+              onClick={() => router.push("/personal-info")}
             >
               Last opp nytt bud
             </Button>
