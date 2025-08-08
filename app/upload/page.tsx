@@ -45,6 +45,7 @@ interface UserSession {
     socialNumber: string;
   };
   bidAmount?: string;
+  realEstateId?: string;
 }
 
 export default function UploadPage() {
@@ -60,8 +61,8 @@ export default function UploadPage() {
     if (sessionData) {
       const parsed = JSON.parse(sessionData);
       setSession(parsed);
-      if (!parsed?.user || !parsed.bidAmount) {
-        console.error("No user or bid amount in session");
+      if (!parsed?.user || !parsed.bidAmount || !parsed.realEstateId) {
+        console.error("No user, bid amount, or real estate ID in session");
         router.push("/");
         return;
       }
@@ -71,9 +72,9 @@ export default function UploadPage() {
   }, [router]);
 
   const handleVerifyAndBid = async () => {
-    if (!file || !session || !session.bidAmount) {
+    if (!file || !session || !session.bidAmount || !session.realEstateId) {
       setVerificationStatus("error");
-      setApiMessage("Manglende fil eller budbeløp i sesjon.");
+      setApiMessage("Manglende fil eller budbeløp/real estate ID i sesjon.");
       return;
     }
 
@@ -81,7 +82,7 @@ export default function UploadPage() {
     setApiMessage("");
 
     const formData = new FormData();
-    formData.append("propertyId", "property1");
+    formData.append("propertyId", session.realEstateId);
     formData.append("userId", session.user.id);
     formData.append("file", file);
     formData.append("expectedName", session.user.name);

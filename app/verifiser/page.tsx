@@ -5,16 +5,15 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle } from "lucide-react";
+import { Trash2, RefreshCcw } from "lucide-react";
 import { supabaseClient } from "@/lib/supabase-client";
-import { updateBidApproval } from "@/lib/bids";
 
 export const dynamic = "force-dynamic";
 
-const propertyMap: Record<string, string> = {
-  property1: "Enebolig på Majorstuen",
-  property2: "Leilighet på Grünerløkka",
-  property3: "Rekkehus på Bekkestua",
+const propertyMap: Record<string, { name: string; address: string }> = {
+  property1: { name: "Enebolig på Majorstuen", address: "Majorstuveien 1, 0367 Oslo" },
+  property2: { name: "Leilighet på Grünerløkka", address: "Thorvald Meyers gate 30, 0555 Oslo" },
+  property3: { name: "Rekkehus på Bekkestua", address: "Bekkestuveien 15, 1357 Bekkestua" },
 };
 
 interface UserSession {
@@ -28,12 +27,6 @@ interface UserSession {
   loginTime: number;
 }
 
-interface Profile {
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-}
-
 interface Bid {
   id: string;
   userId: string;
@@ -41,21 +34,7 @@ interface Bid {
   email: string;
   phone: string;
   bidAmount: number;
-  maxFinancing: number;
-  referenceCode: string;
-  approved?: boolean;
   realEstateId: string;
-}
-
-interface BidResponse {
-  id: string;
-  user_id: string;
-  bid_amount: number;
-  max_financing_amount: number;
-  reference_code: string;
-  approved: boolean | null;
-  real_estate_id: string;
-  profiles: Profile | null;
 }
 
 export default function VerifyPage() {
@@ -96,137 +75,72 @@ export default function VerifyPage() {
   }, []);
 
   useEffect(() => {
-    const fetchBids = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error } = await supabaseClient
-          .from("bids")
-          .select(
-            `
-            id,
-            user_id,
-            bid_amount,
-            max_financing_amount,
-            reference_code,
-            approved,
-            real_estate_id,
-            profiles!bids_user_id_fkey (
-              name,
-              email,
-              phone
-            )
-          `
-          )
-          .order("id", { ascending: false });
-
-        if (error) throw error;
-
-        const mapped = (data as BidResponse[]).map((b) => ({
-          id: b.id,
-          userId: b.user_id,
-          name: b.profiles?.name || "Ukjent",
-          email: b.profiles?.email || "-",
-          phone: b.profiles?.phone || "-",
-          bidAmount: b.bid_amount,
-          maxFinancing: b.max_financing_amount,
-          referenceCode: b.reference_code,
-          approved: b.approved,
-          realEstateId: b.real_estate_id,
-        }));
-
-        setBids(mapped);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error("Failed to fetch bids:", err);
-        setError(`Kunne ikke hente bud: ${errorMessage}`);
-        setBids([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (session?.role === "broker") {
       fetchBids();
-
-      // Set up Supabase Realtime subscription
-      const channel = supabaseClient
-        .channel("bids-channel")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "bids" },
-          async (payload) => {
-            console.log("New bid inserted:", payload);
-            try {
-              const { data, error } = await supabaseClient
-                .from("bids")
-                .select(
-                  `
-                  id,
-                  user_id,
-                  bid_amount,
-                  max_financing_amount,
-                  reference_code,
-                  approved,
-                  real_estate_id,
-                  profiles!bids_user_id_fkey (
-                    name,
-                    email,
-                    phone
-                  )
-                `
-                )
-                .eq("id", payload.new.id)
-                .single();
-
-              if (error) throw error;
-
-              const newBid: Bid = {
-                id: data.id,
-                userId: data.user_id,
-                name: data.profiles?.name || "Ukjent",
-                email: data.profiles?.email || "-",
-                phone: data.profiles?.phone || "-",
-                bidAmount: data.bid_amount,
-                maxFinancing: data.max_financing_amount,
-                referenceCode: data.reference_code,
-                approved: data.approved,
-                realEstateId: data.real_estate_id,
-              };
-
-              setBids((prev) => [newBid, ...prev]);
-            } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : String(err);
-              console.error("Error fetching new bid:", err);
-              setError(`Kunne ikke hente nytt bud: ${errorMessage}`);
-            }
-          }
-        )
-        .subscribe();
-
-      // Cleanup subscription on unmount
-      return () => {
-        supabaseClient.removeChannel(channel);
-      };
     }
   }, [session]);
 
-  const handleApprove = async (referenceCode: string, approved: boolean) => {
+  const fetchBids = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      await updateBidApproval(referenceCode, approved);
-      setBids((prev) =>
-        prev.map((bid) =>
-          bid.referenceCode === referenceCode ? { ...bid, approved } : bid
+      const { data, error } = await supabaseClient
+        .from("bids")
+        .select(
+          `
+          id,
+          user_id,
+          bid_amount,
+          real_estate_id,
+          profiles (
+            name,
+            email,
+            phone
+          )
+        `
         )
-      );
+        .order("id", { ascending: false });
+
+      if (error) throw error;
+
+      const mapped = data.map((b: any) => ({
+        id: b.id,
+        userId: b.user_id,
+        name: b.profiles?.name || "Ukjent",
+        email: b.profiles?.email || "-",
+        phone: b.profiles?.phone || "-",
+        bidAmount: b.bid_amount,
+        realEstateId: b.real_estate_id,
+      }));
+
+      setBids(mapped);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("Approval update failed:", err);
-      setError(`Kunne ikke oppdatere budstatus: ${errorMessage}`);
+      console.error("Failed to fetch bids:", err);
+      setError(`Kunne ikke hente bud: ${errorMessage}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const isBidValid = (bid: Bid) => bid.bidAmount <= bid.maxFinancing;
+  const handleRefresh = async () => {
+    await fetchBids();
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabaseClient.from("bids").delete().eq("id", id);
+      if (error) throw error;
+      setBids((prev) => prev.filter((bid) => bid.id !== id));
+      console.log("Bid deleted:", id);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("Failed to delete bid:", err);
+      setError(`Kunne ikke slette bud: ${errorMessage}`);
+    }
+  };
+
+  const isBidValid = (bid: Bid) => true; // Validation handled by upload page
 
   // Group bids by property
   const groupedBids: Record<string, Bid[]> = {};
@@ -252,8 +166,11 @@ export default function VerifyPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-8">
       <Card className="max-w-6xl mx-auto">
-        <CardHeader>
+        <CardHeader className="flex flex-row justify-between items-center">
           <CardTitle>Megler Dashboard – Budoversikt</CardTitle>
+          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+            <RefreshCcw className="mr-2 h-4 w-4" /> Oppdater
+          </Button>
         </CardHeader>
         <CardContent>
           {error && <p className="text-red-600 mb-4">{error}</p>}
@@ -263,7 +180,7 @@ export default function VerifyPage() {
             Object.entries(groupedBids).map(([propertyId, propertyBids]) => (
               <div key={propertyId} className="mb-10">
                 <h2 className="text-xl font-bold mb-2">
-                  {propertyMap[propertyId] || propertyId}
+                  {propertyMap[propertyId]?.name || propertyId} - {propertyMap[propertyId]?.address || "Ukjent adresse"}
                 </h2>
                 <Table>
                   <TableHeader>
@@ -272,9 +189,6 @@ export default function VerifyPage() {
                       <TableHead>E-post</TableHead>
                       <TableHead>Telefon</TableHead>
                       <TableHead>Bud (kr)</TableHead>
-                      <TableHead>Finansiering (kr)</TableHead>
-                      <TableHead>Kode</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Handlinger</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -285,51 +199,15 @@ export default function VerifyPage() {
                         <TableCell>{bid.email}</TableCell>
                         <TableCell>{bid.phone}</TableCell>
                         <TableCell>{bid.bidAmount.toLocaleString()}</TableCell>
-                        <TableCell>{bid.maxFinancing.toLocaleString()}</TableCell>
-                        <TableCell>{bid.referenceCode}</TableCell>
                         <TableCell>
-                          {bid.approved === true ? (
-                            <span className="text-green-600 font-semibold">
-                              Godkjent
-                            </span>
-                          ) : bid.approved === false ? (
-                            <span className="text-red-600 font-semibold">
-                              Avvist
-                            </span>
-                          ) : isBidValid(bid) ? (
-                            <div className="flex items-center text-green-600">
-                              <CheckCircle className="mr-1 h-4 w-4" /> Gyldig
-                            </div>
-                          ) : (
-                            <div className="flex items-center text-red-600">
-                              <XCircle className="mr-1 h-4 w-4" /> Ikke gyldig
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {bid.approved === undefined && (
-                            <div className="flex gap-2">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() =>
-                                  handleApprove(bid.referenceCode, true)
-                                }
-                                disabled={!isBidValid(bid)}
-                              >
-                                Godkjenn
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() =>
-                                  handleApprove(bid.referenceCode, false)
-                                }
-                              >
-                                Avvis
-                              </Button>
-                            </div>
-                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(bid.id)}
+                            disabled={loading}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

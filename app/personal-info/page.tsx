@@ -1,291 +1,152 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft } from "lucide-react";
-
-interface UserSession {
-  role: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    socialNumber: string;
-  };
-  accessToken: string;
-  loginTime: number;
-}
 
 export default function PersonalInfoPage() {
   const router = useRouter();
-  const [session, setSession] = useState<UserSession | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [socialNumber, setSocialNumber] = useState("");
-  const [address, setAddress] = useState("");
-  const [bidType, setBidType] = useState("consumer");
-  const [addSecondBidder, setAddSecondBidder] = useState(false);
-  const [secondName, setSecondName] = useState("");
-  const [secondEmail, setSecondEmail] = useState("");
-  const [secondPhone, setSecondPhone] = useState("");
-  const [secondSocialNumber, setSecondSocialNumber] = useState("");
-  const [secondAddress, setSecondAddress] = useState("");
-  const [confirmInfo, setConfirmInfo] = useState(false);
-  const [bidAmount, setBidAmount] = useState(""); // <-- Add bid amount state
+  const [name, setName] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [phone, setPhone] = useState<string>("");
+  const [bidAmount, setBidAmount] = useState<string>("");
+  const [realEstateId, setRealEstateId] = useState<string>("property1");
+  const [hasSecondBuyer, setHasSecondBuyer] = useState<boolean>(false);
+  const [secondBuyerName, setSecondBuyerName] = useState<string>("");
+  const [secondBuyerEmail, setSecondBuyerEmail] = useState<string>("");
+  const [secondBuyerPhone, setSecondBuyerPhone] = useState<string>("");
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
-    const state = urlParams.get("state");
-
-    const existingSession = localStorage.getItem("bankid_session");
-    if (existingSession) {
-      const parsed = JSON.parse(existingSession);
-      setSession(parsed);
-      if (!parsed?.user) {
-        router.push("/");
-        return;
-      }
-      setName(parsed.user.name || "");
-      setEmail(parsed.user.email || "");
-      setPhone(parsed.user.phone || "");
-      setSocialNumber(parsed.user.socialNumber || "");
-      // Restore bidAmount if present
-      if (parsed.bidAmount) setBidAmount(parsed.bidAmount);
-      return;
+    const sessionData = localStorage.getItem("bankid_session");
+    if (sessionData) {
+      const parsed = JSON.parse(sessionData);
+      setName(parsed.user?.name || "");
+      setEmail(parsed.user?.email || "");
+      setPhone(parsed.user?.phone || "");
+      setBidAmount(parsed.bidAmount || "");
+      setRealEstateId(parsed.realEstateId || "property1");
+      setHasSecondBuyer(!!parsed.secondBuyer);
+      setSecondBuyerName(parsed.secondBuyer?.name || "");
+      setSecondBuyerEmail(parsed.secondBuyer?.email || "");
+      setSecondBuyerPhone(parsed.secondBuyer?.phone || "");
     }
+  }, []);
 
-    if (code && state) {
-      const codeVerifier = localStorage.getItem("bankid_code_verifier");
-      const redirect_uri = window.location.origin + "/personal-info";
-
-      if (!codeVerifier) {
-        console.error("Missing PKCE code_verifier");
-        router.push("/");
-        return;
-      }
-
-      fetch("/api/auth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, state, redirect_uri, code_verifier: codeVerifier }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.sessionData) {
-            localStorage.setItem("bankid_session", JSON.stringify(data.sessionData));
-            setSession(data.sessionData);
-            setName(data.sessionData.user.name || "");
-            setEmail(data.sessionData.user.email || "");
-            setPhone(data.sessionData.user.phone || "");
-            setSocialNumber(data.sessionData.user.socialNumber || "");
-            if (data.sessionData.bidAmount) setBidAmount(data.sessionData.bidAmount);
-            router.replace("/personal-info");
-          } else {
-            console.error("Login failed:", data);
-            router.push("/");
-          }
-        })
-        .catch((err) => {
-          console.error("Error during BankID login:", err);
-          router.push("/");
-        });
-    } else {
-      router.push("/");
-    }
-  }, [router]);
-
-  const handleProceed = () => {
-    if (!confirmInfo) {
-      alert("Vennligst bekreft at opplysningene er korrekte.");
-      return;
-    }
-    if (!bidAmount || isNaN(Number(bidAmount)) || Number(bidAmount) <= 0) {
-      alert("Vennligst oppgi et gyldig budbeløp.");
-      return;
-    }
-
-    if (session) {
-      const updatedSession = {
-        ...session,
-        user: {
-          ...session.user,
-          name,
-          email,
-          phone,
-          socialNumber,
-          address,
-        },
-        bidType,
-        bidAmount, // <-- Store bid amount in session
-        secondBidder: addSecondBidder
-          ? {
-              name: secondName,
-              email: secondEmail,
-              phone: secondPhone,
-              socialNumber: secondSocialNumber,
-              address: secondAddress,
-            }
-          : null,
+  const handleSave = () => {
+    const sessionData = localStorage.getItem("bankid_session");
+    if (sessionData) {
+      const parsed = JSON.parse(sessionData);
+      parsed.user = {
+        ...parsed.user,
+        name,
+        email,
+        phone,
       };
-      localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
-      setTimeout(() => {
-        router.push("/upload");
-      }, 100);
+      parsed.bidAmount = bidAmount;
+      parsed.realEstateId = realEstateId;
+      if (hasSecondBuyer) {
+        parsed.secondBuyer = {
+          name: secondBuyerName,
+          email: secondBuyerEmail,
+          phone: secondBuyerPhone,
+          socialNumber: "", // Optional, can be added if needed
+        };
+      } else {
+        delete parsed.secondBuyer;
+      }
+      localStorage.setItem("bankid_session", JSON.stringify(parsed));
     }
+    router.push("/upload");
   };
 
-  if (!session) {
-    return <div className="min-h-screen flex items-center justify-center">Laster...</div>;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-8">
-      <div className="max-w-2xl mx-auto w-full">
-        {/* Back Arrow */}
-        <button
-          onClick={() => router.back()}
-          className="mb-4 flex items-center text-sm text-muted-foreground hover:text-black transition"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Tilbake
-        </button>
-
-        <Card className="shadow-lg rounded-2xl">
-          <CardHeader>
-            <CardTitle className="text-xl">Fyll inn personopplysninger</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Bid type */}
-            <div className="space-y-2">
-              <Label>Jeg gir bud som *</Label>
-              <RadioGroup
-                value={bidType}
-                onValueChange={setBidType}
-                className="flex flex-col gap-2 mt-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="consumer" id="consumer" />
-                  <Label htmlFor="consumer">Forbruker</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="business" id="business" />
-                  <Label htmlFor="business">
-                    Ledd i næringsvirksomhet / juridisk person (selskap)
-                  </Label>
-                </div>
-              </RadioGroup>
-              <p className="text-sm text-muted-foreground">
-                For mer informasjon, se forklaring.
-              </p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <Card className="w-full max-w-md p-6 bg-white shadow-lg rounded-lg">
+        <CardHeader>
+          <CardTitle className="text-xl font-semibold">Personlig informasjon</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Navn</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Skriv inn navn" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">E-post</Label>
+            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Skriv inn e-post" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Telefon</Label>
+            <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Skriv inn telefon" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bidAmount">Budbeløp (kr)</Label>
+            <Input
+              id="bidAmount"
+              type="number"
+              value={bidAmount}
+              onChange={(e) => setBidAmount(e.target.value)}
+              placeholder="Skriv inn budbeløp"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="realEstateId">Bolig å by på</Label>
+            <Select value={realEstateId} onValueChange={setRealEstateId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Velg bolig" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="property1">Enebolig på Majorstuen</SelectItem>
+                <SelectItem value="property2">Leilighet på Grünerløkka</SelectItem>
+                <SelectItem value="property3">Rekkehus på Bekkestua</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="secondBuyer" checked={hasSecondBuyer} onCheckedChange={(checked) => setHasSecondBuyer(checked as boolean)} />
+            <Label htmlFor="secondBuyer">Legg til en medbudgiver</Label>
+          </div>
+          {hasSecondBuyer && (
+            <div className="space-y-4 pl-6 border-l-2 border-gray-200">
+              <div className="space-y-2">
+                <Label htmlFor="secondBuyerName">Navn på medbudgiver</Label>
+                <Input
+                  id="secondBuyerName"
+                  value={secondBuyerName}
+                  onChange={(e) => setSecondBuyerName(e.target.value)}
+                  placeholder="Skriv inn navn"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secondBuyerEmail">E-post på medbudgiver</Label>
+                <Input
+                  id="secondBuyerEmail"
+                  type="email"
+                  value={secondBuyerEmail}
+                  onChange={(e) => setSecondBuyerEmail(e.target.value)}
+                  placeholder="Skriv inn e-post"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secondBuyerPhone">Telefon på medbudgiver</Label>
+                <Input
+                  id="secondBuyerPhone"
+                  value={secondBuyerPhone}
+                  onChange={(e) => setSecondBuyerPhone(e.target.value)}
+                  placeholder="Skriv inn telefon"
+                />
+              </div>
             </div>
-
-            {/* Primary person fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Navn</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="socialNumber">Fødselsnummer</Label>
-                <Input id="socialNumber" value={socialNumber} onChange={(e) => setSocialNumber(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="email">E-post</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="phone">Telefonnummer</Label>
-                <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="address">Adresse</Label>
-                <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Bid Amount Field */}
-            <div>
-              <Label htmlFor="bidAmount">Bud (kr)</Label>
-              <Input
-                id="bidAmount"
-                type="number"
-                min={0}
-                value={bidAmount}
-                onChange={(e) => setBidAmount(e.target.value)}
-                required
-              />
-            </div>
-
-            {/* Second bidder toggle */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="addSecond"
-                checked={addSecondBidder}
-                onCheckedChange={(checked) => setAddSecondBidder(!!checked)}
-              />
-              <Label htmlFor="addSecond">Legg til budgiver 2</Label>
-            </div>
-
-            {/* Second bidder fields */}
-            {addSecondBidder && (
-              <div className="space-y-4 border-t pt-4">
-                <p className="font-medium">Budgiver 2</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="secondName">Navn</Label>
-                    <Input id="secondName" value={secondName} onChange={(e) => setSecondName(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label htmlFor="secondSocialNumber">Fødselsnummer</Label>
-                    <Input id="secondSocialNumber" value={secondSocialNumber} onChange={(e) => setSecondSocialNumber(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label htmlFor="secondEmail">E-post</Label>
-                    <Input id="secondEmail" type="email" value={secondEmail} onChange={(e) => setSecondEmail(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label htmlFor="secondPhone">Telefonnummer</Label>
-                    <Input id="secondPhone" type="tel" value={secondPhone} onChange={(e) => setSecondPhone(e.target.value)} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label htmlFor="secondAddress">Adresse</Label>
-                    <Input id="secondAddress" value={secondAddress} onChange={(e) => setSecondAddress(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Confirmation checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="confirm"
-                checked={confirmInfo}
-                onCheckedChange={(checked) => setConfirmInfo(!!checked)}
-              />
-              <Label htmlFor="confirm">Jeg bekrefter at opplysningene er korrekte</Label>
-            </div>
-
-            {/* Proceed button */}
-            <Button onClick={handleProceed} className="w-full">
-              Neste
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+          <Button onClick={handleSave} className="w-full mt-4">
+            Lagre og gå til opplasting
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
