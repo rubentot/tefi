@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     try {
       await fs.unlink(filePath);
-      await fs.rm(tempDir, { recursive: true, force: true }); // Updated to fs.rm
+      await fs.rm(tempDir, { recursive: true, force: true });
       console.log("Cleanup complete");
     } catch (cleanupErr) {
       console.error("Cleanup error:", cleanupErr);
@@ -154,11 +154,11 @@ export async function POST(req: NextRequest) {
 
     // Normalize text
     textContent = textContent
-      .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
-      .replace(/\s+(?=\d)/g, "") // Remove spaces before digits
-      .replace(/(\d)\s+(?=\d)/g, "$1") // Merge spaces between digits
-      .replace(/\s+/g, " ") // Normalize remaining spaces
-      .replace(/[\n\r]+/g, " ") // Replace newlines with spaces
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .replace(/\s+(?=\d)/g, "")
+      .replace(/(\d)\s+(?=\d)/g, "$1")
+      .replace(/\s+/g, " ")
+      .replace(/[\n\r]+/g, " ")
       .trim();
 
     // Log extracted text for debugging
@@ -178,13 +178,18 @@ export async function POST(req: NextRequest) {
             },
           ],
         });
-        const amountText = response.choices[0].message.content.trim();
-        const amount = parseFloat(amountText.replace(/\D/g, ""));
-        if (!isNaN(amount) && amount > 50000) {
-          detectedAmounts.push(amount);
-          console.log("Mistral extracted amount:", amount);
+        const content = response.choices[0]?.message?.content;
+        const amountText = typeof content === "string" ? content.trim() : "";
+        if (amountText) {
+          const amount = parseFloat(amountText.replace(/\D/g, ""));
+          if (!isNaN(amount) && amount > 50000) {
+            detectedAmounts.push(amount);
+            console.log("Mistral extracted amount:", amount);
+          } else {
+            console.log("Mistral returned invalid or small amount:", amountText);
+          }
         } else {
-          console.log("Mistral returned invalid or small amount:", amountText);
+          console.log("Mistral response missing content:", response);
         }
       } catch (err) {
         console.error("Mistral extraction error:", err instanceof Error ? err.message : String(err));
@@ -200,8 +205,8 @@ export async function POST(req: NextRequest) {
         .map((a) => {
           console.log("Raw matched amount:", a);
           const cleaned = a
-            .replace(/[.,\s']/g, "") // Remove separators
-            .replace(/^0+/, ""); // Remove leading zeros
+            .replace(/[.,\s']/g, "")
+            .replace(/^0+/, "");
           console.log("Cleaned amount:", cleaned);
           const num = parseFloat(cleaned);
           return isNaN(num) ? 0 : num;
@@ -229,17 +234,11 @@ export async function POST(req: NextRequest) {
     // Validation
     if (maxFinancing === 0) {
       console.log("No valid financing amount found", { detectedAmounts, amountMatch });
-      return NextResponse.json(
-        { success: false, error: "Kunne ikke finne finansieringsbeløp i dokumentet." },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Kunne ikke finne finansieringsbeløp i dokumentet." }, { status: 400 });
     }
     if (bidAmount > maxFinancing) {
       console.log("Bid exceeds financing", { bidAmount, maxFinancing });
-      return NextResponse.json(
-        { success: false, error: "Budet overstiger finansieringsbeviset." },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Budet overstiger finansieringsbeviset." }, { status: 400 });
     }
 
     // Insert into Supabase
@@ -266,15 +265,21 @@ export async function POST(req: NextRequest) {
       throw new Error(`Failed to insert bid: ${errorMessage}`);
     }
 
+    // Return JSON for client-side redirect
     return NextResponse.json({
       success: true,
-      referenceCode,
-      maxFinancing,
-      detectedName,
+      message: "Opplastning vellykket",
     });
+
   } catch (err) {
-    console.error("Verify upload error:", err instanceof Error ? err.message : String(err), err.stack);
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    if (err instanceof Error) {
+      console.error("Verify upload error:", err.message, err.stack);
+      const errorMessage = err.message;
+      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    } else {
+      console.error("Verify upload error:", String(err));
+      const errorMessage = String(err);
+      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    }
   }
 }

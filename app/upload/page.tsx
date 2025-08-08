@@ -24,7 +24,6 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { addBid } from "@/lib/mockBank";
 
 interface UserSession {
   role: string;
@@ -53,8 +52,7 @@ export default function UploadPage() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "error">("idle");
-  const [referenceCode, setReferenceCode] = useState("");
-  const [apiMessage, setApiMessage] = useState("");
+  const [apiMessage, setApiMessage] = useState<string>("");
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -98,10 +96,10 @@ export default function UploadPage() {
       console.log("API Response:", verifyData);
 
       if (verifyData.success) {
-        const code = await addBid(session, parseFloat(session.bidAmount), "property1");
-        setReferenceCode(code);
         setVerificationStatus("success");
-        setApiMessage(verifyData.message || "Finansieringsbevis er verifisert!");
+        setApiMessage(verifyData.message || "Opplastning vellykket!");
+        // Redirect to success page after a short delay to show feedback
+        setTimeout(() => router.push("/success"), 1000);
       } else {
         setVerificationStatus("error");
         setApiMessage(verifyData.message || "Verifisering feilet. Prøv igjen.");
@@ -161,7 +159,7 @@ export default function UploadPage() {
 
               {verificationStatus === "error" && (
                 <p className="text-sm text-destructive mt-2">
-                  Hvis opplasting feiler, prøv å konvertere til PDF først eller kontakt support.
+                  Hvis opplasting feilet, prøv å konvertere til PDF først eller kontakt support.
                 </p>
               )}
             </div>
@@ -178,10 +176,7 @@ export default function UploadPage() {
             {verificationStatus === "success" && (
               <div className="flex items-start gap-2 p-4 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
                 <CheckCircle className="w-5 h-5 mt-0.5" />
-                <div>
-                  {apiMessage} <br />
-                  <span className="font-semibold">Referansekode:</span> {referenceCode} (gyldig i 5 min)
-                </div>
+                <div>{apiMessage}</div>
               </div>
             )}
 
