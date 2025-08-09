@@ -14,13 +14,16 @@ interface Bid {
   referenceCode: string;
   expiration: Date;
   approved?: boolean;
+  status: "ok" | "ikke ok";
   bidderInfo: {
     name: string;
     email: string;
     phone: string;
-    bankContact: string;
   };
-  realEstateId: string; // Single definition with realEstateId
+  realEstateId: string;
+  bankContactName: string;
+  bankPhone: string;
+  bankName: string;
 }
 
 let db: { proofs: FinancingProof[]; bids: Bid[] } = { proofs: [], bids: [] };
@@ -41,23 +44,27 @@ export async function updateBidApproval(code: string, approved: boolean) {
   }
 }
 
-// Add bid function with realEstateId
-export async function addBid(session: any, bidAmount: number, realEstateId: string = "property1"): Promise<string> {
+// Add bid function (mock, status set by API now)
+export async function addBid(session: any, bidAmount: number, realEstateId: string = "property1", status: "ok" | "ikke ok" = "ok"): Promise<string> {
   const referenceCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
   const bid: Bid = {
     id: uuidv4(),
     userId: session.user.id,
     bidAmount,
     referenceCode,
     expiration,
+    status,
     bidderInfo: {
       name: session.user.name,
       email: session.user.email,
       phone: session.user.phone,
-      bankContact: 'mock-bank-contact@example.com',
     },
     realEstateId,
+    bankContactName: session.bankContact?.name || "Unknown Contact",
+    bankPhone: session.bankContact?.phone || "N/A",
+    bankName: session.bankContact?.bank || "Unknown Bank",
   };
   db.bids.push(bid);
   return referenceCode;
@@ -72,7 +79,7 @@ export async function getAllBids(realEstateId?: string): Promise<Bid[]> {
   return activeBids;
 }
 
-// Verify bid function (implementing the missing dependency)
+// Verify bid function
 async function verifyBid(userId: string, bidAmount: number): Promise<boolean> {
   const proof = db.proofs.find(p => p.userId === userId && new Date(p.expiration) > new Date());
   return !!(proof && bidAmount <= proof.limit);

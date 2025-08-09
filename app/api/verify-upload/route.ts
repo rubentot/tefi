@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase-server";
+import { createServerClient } from "@/lib/supabase-server";
 import Tesseract from "tesseract.js";
 import PDFParser from "pdf2json";
 import { Mistral } from "@mistralai/mistralai";
@@ -10,7 +10,7 @@ import os from "os";
 
 export const dynamic = "force-dynamic";
 
-// Helper function to parse Norwegian written numbers (e.g., "to millioner" → 2000000)
+// Helper function to parse Norwegian written numbers (unchanged)
 function parseNorwegianWrittenNumber(text: string): number | null {
   const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
   const numberMap: { [key: string]: number } = {
@@ -54,7 +54,11 @@ export async function POST(req: NextRequest) {
     const bidAmount = parseFloat(formData.get("bidAmount") as string);
     const userId = formData.get("userId") as string;
     const propertyId = (formData.get("propertyId") as string) || "unknown_property";
-    console.log("Fields extracted", { fileName: file?.name, expectedName, bidAmount, userId, propertyId });
+    const bankContactName = formData.get("bankContactName") as string;
+    const bankPhone = formData.get("bankPhone") as string;
+    const bankName = formData.get("bankName") as string;
+
+    console.log("Fields extracted", { fileName: file?.name, expectedName, bidAmount, userId, propertyId, bankContactName, bankPhone, bankName });
 
     if (!file || !expectedName || isNaN(bidAmount) || !userId || !propertyId) {
       console.log("Missing or invalid fields");
@@ -66,9 +70,9 @@ export async function POST(req: NextRequest) {
       buffer = Buffer.from(await file.arrayBuffer());
       console.log("Buffer created", { size: buffer.length, name: file.name });
     } catch (err) {
-      console.error("Error creating buffer from file:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to create buffer: ${errorMessage}`);
+      console.error("Error creating buffer from file:", errorMessage);
+      return NextResponse.json({ success: false, error: `Failed to create buffer: ${errorMessage}` }, { status: 500 });
     }
 
     const tempDir = path.join(os.tmpdir(), `upload-${Date.now()}-${uuidv4()}`);
@@ -76,9 +80,9 @@ export async function POST(req: NextRequest) {
       await fs.mkdir(tempDir, { recursive: true });
       console.log("Temp directory created:", tempDir);
     } catch (err) {
-      console.error("Error creating temp directory:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to create temp directory: ${errorMessage}`);
+      console.error("Error creating temp directory:", errorMessage);
+      return NextResponse.json({ success: false, error: `Failed to create temp directory: ${errorMessage}` }, { status: 500 });
     }
 
     const filePath = path.join(tempDir, file.name);
@@ -86,9 +90,9 @@ export async function POST(req: NextRequest) {
       await fs.writeFile(filePath, buffer);
       console.log("File written to disk:", filePath);
     } catch (err) {
-      console.error("Error writing file to disk:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to write file: ${errorMessage}`);
+      console.error("Error writing file to disk:", errorMessage);
+      return NextResponse.json({ success: false, error: `Failed to write file: ${errorMessage}` }, { status: 500 });
     }
 
     let textContent = "";
@@ -125,9 +129,9 @@ export async function POST(req: NextRequest) {
           await worker.terminate();
         }
       } catch (err) {
-        console.error("PDF processing error:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to process PDF: ${errorMessage}`);
+        console.error("PDF processing error:", errorMessage);
+        return NextResponse.json({ success: false, error: `Failed to process PDF: ${errorMessage}` }, { status: 500 });
       }
     } else {
       console.log("🖼️ Processing image file with OCR...");
@@ -138,9 +142,9 @@ export async function POST(req: NextRequest) {
         console.log("OCR completed, text length:", textContent.length);
         await worker.terminate();
       } catch (err) {
-        console.error("Error running OCR:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to process image: ${errorMessage}`);
+        console.error("Error running OCR:", errorMessage);
+        return NextResponse.json({ success: false, error: `Failed to process image: ${errorMessage}` }, { status: 500 });
       }
     }
 
@@ -152,7 +156,6 @@ export async function POST(req: NextRequest) {
       console.error("Cleanup error:", cleanupErr);
     }
 
-    // Normalize text
     textContent = textContent
       .replace(/[\u200B-\u200D\uFEFF]/g, "")
       .replace(/\s+(?=\d)/g, "")
@@ -161,10 +164,8 @@ export async function POST(req: NextRequest) {
       .replace(/[\n\r]+/g, " ")
       .trim();
 
-    // Log extracted text for debugging
     console.log("Extracted text (full):", textContent);
 
-    // Try Mistral AI for semantic extraction
     let detectedAmounts: number[] = [];
     if (process.env.MISTRAL_API_KEY) {
       try {
@@ -192,13 +193,14 @@ export async function POST(req: NextRequest) {
           console.log("Mistral response missing content:", response);
         }
       } catch (err) {
-        console.error("Mistral extraction error:", err instanceof Error ? err.message : String(err));
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("Mistral extraction error:", errorMessage);
+        return NextResponse.json({ success: false, error: `Failed Mistral extraction: ${errorMessage}` }, { status: 500 });
       }
     } else {
       console.log("Mistral API key missing, skipping semantic extraction");
     }
 
-    // Fallback to regex-based extraction
     const amountMatch = textContent.match(/(?:\b(?:NOK|kr|Kr|NOK\s+|kr\s+|Kr\s+|kroner\s+|kroner|låneramme\s+|finansieringsbeløp\s+|beløp\s+)?)\s*(\d{1,3}(?:[.,\s']?\d{3})*(?:[.,]\d{1,2})?(?:\s*(?:NOK|kr|Kr|kroner))?|\d{4,}(?!\d)(?:\s*(?:NOK|kr|Kr|kroner))?)/gi);
     if (amountMatch) {
       const regexAmounts = amountMatch
@@ -215,7 +217,6 @@ export async function POST(req: NextRequest) {
       detectedAmounts.push(...regexAmounts);
     }
 
-    // Fallback to written number parser
     const writtenAmount = parseNorwegianWrittenNumber(textContent);
     if (writtenAmount) {
       detectedAmounts.push(writtenAmount);
@@ -224,63 +225,61 @@ export async function POST(req: NextRequest) {
 
     const maxFinancing = detectedAmounts.length > 0 ? Math.max(...detectedAmounts) : 0;
 
-    // Extract name
     const normalizedText = textContent.toLowerCase();
     const normalizedExpectedName = expectedName.toLowerCase();
     const detectedName = normalizedText.includes(normalizedExpectedName)
       ? expectedName
       : textContent.split(" ").find((line) => line.toLowerCase().includes(normalizedExpectedName)) || "Ukjent";
 
-    // Validation
-    if (maxFinancing === 0) {
-      console.log("No valid financing amount found", { detectedAmounts, amountMatch });
-      return NextResponse.json({ success: false, error: "Kunne ikke finne finansieringsbeløp i dokumentet." }, { status: 400 });
-    }
-    if (bidAmount > maxFinancing) {
-      console.log("Bid exceeds financing", { bidAmount, maxFinancing });
-      const errorMessage = `Ditt budbeløp på ${bidAmount.toLocaleString()} kr overstiger det verifiserte finansieringsbeløpet på ${maxFinancing.toLocaleString()} kr. Vennligst juster budet ditt.`;
-      return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
-    }
+    // Always register the bid, set status based on sufficiency
+    const sufficiencyMatch = maxFinancing >= bidAmount;
+    const status = sufficiencyMatch ? "ok" : "ikke ok";
+    const message = sufficiencyMatch
+      ? "Finansieringsbevis er verifisert. Lånebeløp er tilstrekkelig."
+      : "Finansieringsbevis er verifisert, men lånebeløp er ikke tilstrekkelig.";
 
-    // Insert into Supabase
+    const supabase = createServerClient();
     const referenceCode = uuidv4().slice(0, 8).toUpperCase();
+    const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
     try {
-      const { error: insertError } = await supabaseServer.from("bids").insert([
-        {
-          user_id: userId,
-          bid_amount: bidAmount,
-          max_financing_amount: maxFinancing,
-          reference_code: referenceCode,
-          approved: null,
-          real_estate_id: propertyId,
+      const { data, error: insertError } = await supabase.from("bids").insert({
+        user_id: userId,
+        bid_amount: bidAmount,
+        max_financing_amount: maxFinancing,
+        reference_code: referenceCode,
+        approved: null,
+        status: status,
+        real_estate_id: propertyId,
+        bank_contact_name: bankContactName || "Unknown Contact",
+        bank_phone: bankPhone || "N/A",
+        bank_name: bankName || "Unknown Bank",
+        expiration: expiration.toISOString(),
+        bidder_info: {
+          name: expectedName, // Use expectedName as a fallback
+          email: "unknown@example.com", // Default email
+          phone: "N/A", // Default phone
         },
-      ]);
+      });
       if (insertError) {
         console.error("Supabase insert error:", insertError.message);
-        return NextResponse.json({ success: false, error: "Failed to save bid" }, { status: 500 });
+        return NextResponse.json({ success: false, error: "Failed to save bid: " + insertError.message }, { status: 500 });
       }
       console.log("Inserted into Supabase, referenceCode:", referenceCode);
     } catch (err) {
-      console.error("Error inserting into Supabase:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to insert bid: ${errorMessage}`);
+      console.error("Error inserting into Supabase:", errorMessage);
+      return NextResponse.json({ success: false, error: `Failed to insert bid: ${errorMessage}` }, { status: 500 });
     }
 
-    // Return JSON for client-side redirect
     return NextResponse.json({
       success: true,
-      message: "Opplastning vellykket",
+      message: message,
+      status: status,
     });
 
   } catch (err) {
-    if (err instanceof Error) {
-      console.error("Verify upload error:", err.message, err.stack);
-      const errorMessage = err.message;
-      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
-    } else {
-      console.error("Verify upload error:", String(err));
-      const errorMessage = String(err);
-      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
-    }
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("Verify upload error:", errorMessage, err instanceof Error ? err.stack : "");
+    return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
   }
 }
