@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/lib/supabase-server"; // Updated import
 import Tesseract from "tesseract.js";
 import PDFParser from "pdf2json";
 import { Mistral } from "@mistralai/mistralai";
@@ -10,7 +10,7 @@ import os from "os";
 
 export const dynamic = "force-dynamic";
 
-// Helper function to parse Norwegian written numbers (unchanged)
+// Helper function to parse Norwegian written numbers
 function parseNorwegianWrittenNumber(text: string): number | null {
   const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
   const numberMap: { [key: string]: number } = {
@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
       buffer = Buffer.from(await file.arrayBuffer());
       console.log("Buffer created", { size: buffer.length, name: file.name });
     } catch (err) {
+      console.error("Error creating buffer from file:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("Error creating buffer from file:", errorMessage);
-      return NextResponse.json({ success: false, error: `Failed to create buffer: ${errorMessage}` }, { status: 500 });
+      throw new Error(`Failed to create buffer: ${errorMessage}`);
     }
 
     const tempDir = path.join(os.tmpdir(), `upload-${Date.now()}-${uuidv4()}`);
@@ -80,9 +80,9 @@ export async function POST(req: NextRequest) {
       await fs.mkdir(tempDir, { recursive: true });
       console.log("Temp directory created:", tempDir);
     } catch (err) {
+      console.error("Error creating temp directory:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("Error creating temp directory:", errorMessage);
-      return NextResponse.json({ success: false, error: `Failed to create temp directory: ${errorMessage}` }, { status: 500 });
+      throw new Error(`Failed to create temp directory: ${errorMessage}`);
     }
 
     const filePath = path.join(tempDir, file.name);
@@ -90,9 +90,9 @@ export async function POST(req: NextRequest) {
       await fs.writeFile(filePath, buffer);
       console.log("File written to disk:", filePath);
     } catch (err) {
+      console.error("Error writing file to disk:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("Error writing file to disk:", errorMessage);
-      return NextResponse.json({ success: false, error: `Failed to write file: ${errorMessage}` }, { status: 500 });
+      throw new Error(`Failed to write file: ${errorMessage}`);
     }
 
     let textContent = "";
@@ -129,9 +129,9 @@ export async function POST(req: NextRequest) {
           await worker.terminate();
         }
       } catch (err) {
+        console.error("PDF processing error:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error("PDF processing error:", errorMessage);
-        return NextResponse.json({ success: false, error: `Failed to process PDF: ${errorMessage}` }, { status: 500 });
+        throw new Error(`Failed to process PDF: ${errorMessage}`);
       }
     } else {
       console.log("🖼️ Processing image file with OCR...");
@@ -142,9 +142,9 @@ export async function POST(req: NextRequest) {
         console.log("OCR completed, text length:", textContent.length);
         await worker.terminate();
       } catch (err) {
+        console.error("Error running OCR:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error("Error running OCR:", errorMessage);
-        return NextResponse.json({ success: false, error: `Failed to process image: ${errorMessage}` }, { status: 500 });
+        throw new Error(`Failed to process image: ${errorMessage}`);
       }
     }
 
@@ -193,9 +193,7 @@ export async function POST(req: NextRequest) {
           console.log("Mistral response missing content:", response);
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error("Mistral extraction error:", errorMessage);
-        return NextResponse.json({ success: false, error: `Failed Mistral extraction: ${errorMessage}` }, { status: 500 });
+        console.error("Mistral extraction error:", err instanceof Error ? err.message : String(err));
       }
     } else {
       console.log("Mistral API key missing, skipping semantic extraction");
@@ -238,11 +236,10 @@ export async function POST(req: NextRequest) {
       ? "Finansieringsbevis er verifisert. Lånebeløp er tilstrekkelig."
       : "Finansieringsbevis er verifisert, men lånebeløp er ikke tilstrekkelig.";
 
-    const supabase = createServerClient();
+    const supabase = createServerClient(); // Instantiate the client
     const referenceCode = uuidv4().slice(0, 8).toUpperCase();
-    const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
-    try {
-      const { data, error: insertError } = await supabase.from("bids").insert({
+    const { error: insertError } = await supabase.from("bids").insert([
+      {
         user_id: userId,
         bid_amount: bidAmount,
         max_financing_amount: maxFinancing,
@@ -253,33 +250,30 @@ export async function POST(req: NextRequest) {
         bank_contact_name: bankContactName || "Unknown Contact",
         bank_phone: bankPhone || "N/A",
         bank_name: bankName || "Unknown Bank",
-        expiration: expiration.toISOString(),
-        bidder_info: {
-          name: expectedName, // Use expectedName as a fallback
-          email: "unknown@example.com", // Default email
-          phone: "N/A", // Default phone
-        },
-      });
-      if (insertError) {
-        console.error("Supabase insert error:", insertError.message);
-        return NextResponse.json({ success: false, error: "Failed to save bid: " + insertError.message }, { status: 500 });
-      }
-      console.log("Inserted into Supabase, referenceCode:", referenceCode);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("Error inserting into Supabase:", errorMessage);
-      return NextResponse.json({ success: false, error: `Failed to insert bid: ${errorMessage}` }, { status: 500 });
+      },
+    ]);
+    if (insertError) {
+      console.error("Supabase insert error:", insertError.message);
+      return NextResponse.json({ success: false, error: "Failed to save bid" }, { status: 500 });
     }
+    console.log("Inserted into Supabase, referenceCode:", referenceCode);
 
     return NextResponse.json({
       success: true,
       message: message,
       status: status,
+      referenceCode: referenceCode,
     });
 
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error("Verify upload error:", errorMessage, err instanceof Error ? err.stack : "");
-    return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    if (err instanceof Error) {
+      console.error("Verify upload error:", err.message, err.stack);
+      const errorMessage = err.message;
+      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    } else {
+      console.error("Verify upload error:", String(err));
+      const errorMessage = String(err);
+      return NextResponse.json({ success: false, error: `Server error: ${errorMessage}` }, { status: 500 });
+    }
   }
 }
