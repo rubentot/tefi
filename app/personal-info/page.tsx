@@ -67,7 +67,7 @@ export default function PersonalInfoPage() {
   const [gdprConsent, setGdprConsent] = useState(false);
   const [psd2Consent, setPsd2Consent] = useState(false);
   const [dataSharingConsent, setDataSharingConsent] = useState(false);
-  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(true);
 
   useEffect(() => {
     const sessionData = localStorage.getItem("bankid_session");
@@ -86,8 +86,15 @@ export default function PersonalInfoPage() {
       setGdprConsent(parsed.consents?.gdpr || false);
       setPsd2Consent(parsed.consents?.psd2 || false);
       setDataSharingConsent(parsed.consents?.dataSharing || false);
-      if (!parsed.consents || !parsed.consents.gdpr || !parsed.consents.dataSharing) {
+      if (
+        !parsed.consents ||
+        !parsed.consents.gdpr ||
+        !parsed.consents.psd2 ||
+        !parsed.consents.dataSharing
+      ) {
         setShowConsentModal(true);
+      } else {
+        setShowConsentModal(false);
       }
     } else {
       router.push("/");
@@ -99,8 +106,8 @@ export default function PersonalInfoPage() {
       alert("Vennligst bekreft at opplysningene er korrekte.");
       return;
     }
-    if (!gdprConsent || !dataSharingConsent) {
-      alert("Vennligst gi samtykke til data behandling og deling med megler.");
+    if (!gdprConsent || !psd2Consent || !dataSharingConsent) {
+      alert("Du må gi samtykke til alle punkter for å fortsette.");
       return;
     }
     if (!bidAmount || parseFloat(bidAmount) <= 0) {
@@ -120,7 +127,15 @@ export default function PersonalInfoPage() {
         },
         bidAmount,
         bidType,
-        secondBidder: addSecondBidder ? { name: secondName, email: secondEmail, phone: secondPhone, socialNumber: secondSocialNumber, address: secondAddress } : null,
+        secondBidder: addSecondBidder
+          ? {
+              name: secondName,
+              email: secondEmail,
+              phone: secondPhone,
+              socialNumber: secondSocialNumber,
+              address: secondAddress,
+            }
+          : null,
         bankContact: {
           name: bankContactName,
           phone: bankPhone,
@@ -130,6 +145,7 @@ export default function PersonalInfoPage() {
           gdpr: gdprConsent,
           psd2: psd2Consent,
           dataSharing: dataSharingConsent,
+          timestamp: new Date().toISOString(),
         },
       };
       localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
@@ -140,86 +156,78 @@ export default function PersonalInfoPage() {
     }
   };
 
-  const handleAcceptConsents = () => {
-    if (!gdprConsent || !dataSharingConsent) {
-      alert("Vennligst godta alle obligatoriske samtykker.");
-      return;
-    }
-    setShowConsentModal(false);
-  };
-
   if (!session) {
     return <div className="min-h-screen flex items-center justify-center">Laster...</div>;
   }
 
-  <Dialog open={showConsentModal} onOpenChange={setShowConsentModal}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Samtykke til databehandling</DialogTitle>
-      <DialogDescription>
-        For å bruke Tefi må du gi eksplisitt samtykke til:
-        <ul className="list-disc ml-6 mt-2 text-sm">
-          <li>
-            <b>GDPR:</b> Jeg tillater Tefi å behandle mitt finansieringsbevis for å verifisere om budet er dekket, og dele kun en ja/nei-bekreftelse med megler.
-          </li>
-          <li>
-            <b>PSD2:</b> Jeg samtykker til at Tefi kan hente finansieringsstatus direkte fra min bank via BankID/PSD2 for budbekreftelse.
-          </li>
-          <li>
-            <b>Datadeling:</b> Jeg samtykker til at Tefi deler kun en ja/nei-bekreftelse av mitt bud med ansvarlig megler for denne eiendommen.
-          </li>
-        </ul>
-        <span className="text-xs text-gray-500 block mt-2">
-          Samtykket logges med BankID og kan trekkes tilbake via din profil. All dokumentdata krypteres og slettes etter verifisering.
-        </span>
-      </DialogDescription>
-    </DialogHeader>
-    <div className="space-y-2 mt-4">
-      <div className="flex items-start space-x-2">
-        <Checkbox
-          id="gdprConsent"
-          checked={gdprConsent}
-          onCheckedChange={(checked) => setGdprConsent(!!checked)}
-        />
-        <Label htmlFor="gdprConsent" className="text-sm">GDPR-samtykke</Label>
-      </div>
-      <div className="flex items-start space-x-2">
-        <Checkbox
-          id="psd2Consent"
-          checked={psd2Consent}
-          onCheckedChange={(checked) => setPsd2Consent(!!checked)}
-        />
-        <Label htmlFor="psd2Consent" className="text-sm">PSD2-samtykke</Label>
-      </div>
-      <div className="flex items-start space-x-2">
-        <Checkbox
-          id="dataSharingConsent"
-          checked={dataSharingConsent}
-          onCheckedChange={(checked) => setDataSharingConsent(!!checked)}
-        />
-        <Label htmlFor="dataSharingConsent" className="text-sm">Samtykke til datadeling med megler</Label>
-      </div>
-    </div>
-    <DialogFooter>
-      <Button
-        onClick={() => {
-          if (!gdprConsent || !psd2Consent || !dataSharingConsent) {
-            alert("Du må gi samtykke til alle punkter for å fortsette.");
-            return;
-          }
-          setShowConsentModal(false);
-        }}
-        className="w-full"
-      >
-        Jeg samtykker og fortsetter
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
-
   return (
     <TooltipProvider>
+      {/* Consent Modal */}
+      <Dialog open={showConsentModal} onOpenChange={setShowConsentModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Samtykke til databehandling</DialogTitle>
+            <DialogDescription>
+              For å bruke Tefi må du gi eksplisitt samtykke til:
+              <ul className="list-disc ml-6 mt-2 text-sm">
+                <li>
+                  <b>GDPR:</b> Jeg tillater Tefi å behandle mitt finansieringsbevis for å verifisere om budet er dekket, og dele kun en ja/nei-bekreftelse med megler.
+                </li>
+                <li>
+                  <b>PSD2:</b> Jeg samtykker til at Tefi kan hente finansieringsstatus direkte fra min bank via BankID/PSD2 for budbekreftelse.
+                </li>
+                <li>
+                  <b>Datadeling:</b> Jeg samtykker til at Tefi deler kun en ja/nei-bekreftelse av mitt bud med ansvarlig megler for denne eiendommen.
+                </li>
+              </ul>
+              <span className="text-xs text-gray-500 block mt-2">
+                Samtykket logges med BankID og kan trekkes tilbake via din profil. All dokumentdata krypteres og slettes etter verifisering.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-4">
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="gdprConsent"
+                checked={gdprConsent}
+                onCheckedChange={(checked) => setGdprConsent(!!checked)}
+              />
+              <Label htmlFor="gdprConsent" className="text-sm">GDPR-samtykke</Label>
+            </div>
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="psd2Consent"
+                checked={psd2Consent}
+                onCheckedChange={(checked) => setPsd2Consent(!!checked)}
+              />
+              <Label htmlFor="psd2Consent" className="text-sm">PSD2-samtykke</Label>
+            </div>
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="dataSharingConsent"
+                checked={dataSharingConsent}
+                onCheckedChange={(checked) => setDataSharingConsent(!!checked)}
+              />
+              <Label htmlFor="dataSharingConsent" className="text-sm">Samtykke til datadeling med megler</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (!gdprConsent || !psd2Consent || !dataSharingConsent) {
+                  alert("Du må gi samtykke til alle punkter for å fortsette.");
+                  return;
+                }
+                setShowConsentModal(false);
+              }}
+              className="w-full"
+            >
+              Jeg samtykker og fortsetter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Main Page Content */}
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex flex-col">
         <header className="bg-white shadow-md p-4 sticky top-0 z-10">
           <div className="container mx-auto flex justify-between items-center max-w-4xl">
