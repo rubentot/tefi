@@ -101,6 +101,29 @@ export default function PersonalInfoPage() {
     }
   }, [router]);
 
+  // Save consent to DB
+  async function saveConsentToDB() {
+    try {
+      const res = await fetch("/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session?.user.id,
+          gdpr: gdprConsent,
+          psd2: psd2Consent,
+          dataSharing: dataSharingConsent,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert("Kunne ikke lagre samtykke i databasen.");
+      }
+    } catch (err) {
+      alert("Feil ved lagring av samtykke.");
+    }
+  }
+
   const handleProceed = () => {
     if (!confirmInfo) {
       alert("Vennligst bekreft at opplysningene er korrekte.");
@@ -213,11 +236,12 @@ export default function PersonalInfoPage() {
           </div>
           <DialogFooter>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 if (!gdprConsent || !psd2Consent || !dataSharingConsent) {
                   alert("Du må gi samtykke til alle punkter for å fortsette.");
                   return;
                 }
+                await saveConsentToDB();
                 setShowConsentModal(false);
               }}
               className="w-full"
