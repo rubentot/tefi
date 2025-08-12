@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/lib/supabase-server";
 
-const supabase = createSupabaseServerClient();
+const supabase = createServerClient();
 
 export async function POST(req: NextRequest) {
   try {
