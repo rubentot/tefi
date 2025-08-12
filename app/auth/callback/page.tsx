@@ -22,7 +22,7 @@ export default function AuthCallbackPage() {
     localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
 
     // Redirect immediately
-    router.push(role === "bidder" ? "/bid-form" : "/dashboard");
+    router.push(role === "bidder" ? "/personal-info" : "/dashboard");
   }, [router]);
 
   return (
