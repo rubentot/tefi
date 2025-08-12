@@ -138,7 +138,7 @@ export default function VerifyPage() {
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Navn</TableHead>
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">E-post</TableHead>
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Telefon</TableHead>
-                    <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Kode</TableHead>
+                    {/* Removed Kode column */}
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Status</TableHead>
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Bankkontakt Navn</TableHead>
                     <TableHead className="py-3 px-4 text-left text-gray-600 font-medium">Bank Telefon</TableHead>
@@ -151,7 +151,7 @@ export default function VerifyPage() {
                       <TableCell className="py-3 px-4 text-gray-800">{bid.bidder_info?.name || "Ukjent"}</TableCell>
                       <TableCell className="py-3 px-4 text-gray-800">{bid.bidder_info?.email || "ukjent@example.com"}</TableCell>
                       <TableCell className="py-3 px-4 text-gray-800">{bid.bidder_info?.phone || "N/A"}</TableCell>
-                      <TableCell className="py-3 px-4 text-gray-800">{bid.reference_code}</TableCell>
+                      {/* Removed Kode cell */}
                       <TableCell className="py-3 px-4 text-gray-800 font-semibold">
                         {bid.status.toUpperCase()}
                       </TableCell>
@@ -162,7 +162,7 @@ export default function VerifyPage() {
                   ))}
                   {bids.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-4 text-center text-gray-500">
+                      <TableCell colSpan={7} className="py-4 text-center text-gray-500">
                         Ingen aktive budgivere ennå.
                       </TableCell>
                     </TableRow>

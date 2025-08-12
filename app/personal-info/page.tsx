@@ -53,6 +53,11 @@ export default function PersonalInfoPage() {
   const [socialNumber, setSocialNumber] = useState("");
   const [address, setAddress] = useState("");
   const [bidAmount, setBidAmount] = useState("");
+  const [offerAmount, setOfferAmount] = useState("");
+  const [acceptDeadlineDate, setAcceptDeadlineDate] = useState("");
+  const [acceptDeadlineTime, setAcceptDeadlineTime] = useState("");
+  const [conditions, setConditions] = useState("");
+  const [desiredTakeover, setDesiredTakeover] = useState("");
   const [bidType, setBidType] = useState("consumer");
   const [addSecondBidder, setAddSecondBidder] = useState(false);
   const [secondName, setSecondName] = useState("");
@@ -170,6 +175,11 @@ export default function PersonalInfoPage() {
           dataSharing: dataSharingConsent,
           timestamp: new Date().toISOString(),
         },
+        offerAmount,
+        acceptDeadlineDate,
+        acceptDeadlineTime,
+        conditions,
+        desiredTakeover,
       };
       localStorage.setItem("bankid_session", JSON.stringify(updatedSession));
       console.log("Saved session with consents:", updatedSession);
@@ -320,6 +330,62 @@ export default function PersonalInfoPage() {
               <section className="space-y-4 md:col-span-2">
                 <Label htmlFor="bidAmount" className="text-sm text-gray-700">Budbeløp (kr)</Label>
                 <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder="Skriv inn budbeløp" className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600" />
+              </section>
+
+              <section className="space-y-4 md:col-span-2">
+                <Label htmlFor="offerAmount" className="text-sm text-gray-700">Beløp</Label>
+                <Input
+                  id="offerAmount"
+                  value={offerAmount}
+                  onChange={(e) => setOfferAmount(e.target.value)}
+                  placeholder="For eksempel '2 550 000'"
+                  className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600"
+                />
+              </section>
+
+              <section className="space-y-4 md:col-span-2">
+                <Label htmlFor="acceptDeadlineDate" className="text-sm text-gray-700">Akseptfrist</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="acceptDeadlineDate"
+                    type="date"
+                    value={acceptDeadlineDate}
+                    onChange={(e) => setAcceptDeadlineDate(e.target.value)}
+                    className="text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600"
+                  />
+                  <Input
+                    id="acceptDeadlineTime"
+                    type="time"
+                    value={acceptDeadlineTime}
+                    onChange={(e) => setAcceptDeadlineTime(e.target.value)}
+                    className="text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">Du bør ikke sette en kortere akseptfrist enn at megler har mulighet til å orientere selger, budgivere og øvrige interessenter om bud og forbehold.</p>
+              </section>
+
+              <section className="space-y-4 md:col-span-2">
+                <Label htmlFor="conditions" className="text-sm text-gray-700">Eventuelle forbehold <span className="text-xs text-gray-500">(Valgfritt)</span></Label>
+                <textarea
+                  id="conditions"
+                  value={conditions}
+                  onChange={(e) => setConditions(e.target.value)}
+                  placeholder="Skriv eventuelle forbehold her"
+                  className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600 w-full rounded"
+                  rows={3}
+                />
+                <p className="text-xs text-gray-500">Eventuelle forbehold er en del av budet og vil bli videreformidlet til selger/øvrige budgivere og interessenter.</p>
+              </section>
+
+              <section className="space-y-4 md:col-span-2">
+                <Label htmlFor="desiredTakeover" className="text-sm text-gray-700">Ønsket overtagelse</Label>
+                <Input
+                  id="desiredTakeover"
+                  value={desiredTakeover}
+                  onChange={(e) => setDesiredTakeover(e.target.value)}
+                  placeholder="Skriv ønsket overtagelsesdato eller periode"
+                  className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600"
+                />
               </section>
 
               <section className="space-y-4 md:col-span-2">
