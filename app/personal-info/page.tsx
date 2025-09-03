@@ -53,7 +53,6 @@ export default function PersonalInfoPage() {
   const [socialNumber, setSocialNumber] = useState("");
   const [address, setAddress] = useState("");
   const [bidAmount, setBidAmount] = useState("");
-  const [offerAmount, setOfferAmount] = useState("");
   const [acceptDeadlineDate, setAcceptDeadlineDate] = useState("");
   const [acceptDeadlineTime, setAcceptDeadlineTime] = useState("");
   const [conditions, setConditions] = useState("");
@@ -175,7 +174,7 @@ export default function PersonalInfoPage() {
           dataSharing: dataSharingConsent,
           timestamp: new Date().toISOString(),
         },
-        offerAmount,
+        offerAmount: "",
         acceptDeadlineDate,
         acceptDeadlineTime,
         conditions,
@@ -329,16 +328,12 @@ export default function PersonalInfoPage() {
 
               <section className="space-y-4 md:col-span-2">
                 <Label htmlFor="bidAmount" className="text-sm text-gray-700">Budbeløp (kr)</Label>
-                <Input id="bidAmount" type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} placeholder="Skriv inn budbeløp" className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600" />
-              </section>
-
-              <section className="space-y-4 md:col-span-2">
-                <Label htmlFor="offerAmount" className="text-sm text-gray-700">Beløp</Label>
                 <Input
-                  id="offerAmount"
-                  value={offerAmount}
-                  onChange={(e) => setOfferAmount(e.target.value)}
-                  placeholder="For eksempel '2 550 000'"
+                  id="bidAmount"
+                  type="number"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  placeholder="Skriv inn budbeløp"
                   className="mt-1 text-sm border-gray-300 focus:border-blue-600 focus:ring-blue-600"
                 />
               </section>
