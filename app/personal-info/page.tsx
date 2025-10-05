@@ -188,6 +188,11 @@ export default function PersonalInfoPage() {
     }
   };
 
+  const handleSignOut = () => {
+    localStorage.removeItem("bankid_session");
+    router.push("/");
+  };
+
   if (!session) {
     return <div className="min-h-screen flex items-center justify-center">Laster...</div>;
   }
@@ -268,12 +273,24 @@ export default function PersonalInfoPage() {
               <span className="text-xl font-bold text-gray-900">Tefi</span>
               <span className="text-sm text-gray-600">Budgivning</span>
             </div>
-            <Tooltip>
-              <TooltipTrigger><Lock className="h-5 w-5 text-blue-600" /></TooltipTrigger>
-              <TooltipContent>
-                <p>Sikret med BankID</p>
-              </TooltipContent>
-            </Tooltip>
+            <div className="flex items-center space-x-2">
+              {/* Logg ut button to the left of the lock icon */}
+              <Button
+                variant="outline"
+                className="bg-red-500 text-white hover:bg-red-600"
+                onClick={handleSignOut}
+              >
+                Logg ut
+              </Button>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Lock className="h-5 w-5 text-blue-600" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Sikret med BankID</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </header>
 
@@ -449,3 +466,29 @@ export default function PersonalInfoPage() {
     </TooltipProvider>
   );
 }
+
+const handleBankIDLogin = async () => {
+  if (process.env.NEXT_PUBLIC_DEV_BYPASS_BANKID === "true") {
+    // Mock session data
+    const mockSession = {
+      role: "user",
+      user: {
+        id: "dev-user",
+        name: "Dev User",
+        email: "dev@tefi.no",
+        phone: "12345678",
+        socialNumber: "01010012345",
+      },
+      accessToken: "dev-token",
+      loginTime: Date.now(),
+      consents: {
+        gdpr: true,
+        psd2: true,
+        dataSharing: true,
+      },
+    };
+    localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+    window.location.href = "/personal-info";
+    return;
+  }
+};

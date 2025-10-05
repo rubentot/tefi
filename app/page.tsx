@@ -24,6 +24,30 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
   const handleBankIDLogin = async () => {
+    if (process.env.NEXT_PUBLIC_DEV_BYPASS_BANKID === "true") {
+      // Mock session data
+      const mockSession = {
+        role: "user",
+        user: {
+          id: "dev-user",
+          name: "Dev User",
+          email: "dev@tefi.no",
+          phone: "12345678",
+          socialNumber: "01010012345",
+        },
+        accessToken: "dev-token",
+        loginTime: Date.now(),
+        consents: {
+          gdpr: true,
+          psd2: true,
+          dataSharing: true,
+        },
+      };
+      localStorage.setItem("bankid_session", JSON.stringify(mockSession));
+      router.push("/personal-info");
+      return;
+    }
+
     toast({ title: "BankID login", description: "Sender deg til BankID..." });
 
     try {
