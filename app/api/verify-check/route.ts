@@ -6,3 +6,6 @@ export async function GET(req: NextRequest) {
   if (code) return NextResponse.json({ success: true });
   return NextResponse.json({ error: "Invalid code" });
 }
+
+const { data } = await supabase.from('bids').select('*').limit(1);
+console.log('Connected DB test:', data);

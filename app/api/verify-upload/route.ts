@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server"; // Updated import
+import { createClient } from "@supabase/supabase-js";
 import Tesseract from "tesseract.js";
 import PDFParser from "pdf2json";
 import { Mistral } from "@mistralai/mistralai";
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File;
     const expectedName = formData.get("expectedName") as string;
     const bidAmount = parseFloat(formData.get("bidAmount") as string);
-    const userId = formData.get("userId") as string;
+    const userId = "0484c63d-5147-4937-b2ec-55784c7e3e2c";
     const propertyId = (formData.get("propertyId") as string) || "unknown_property";
     const bankContactName = formData.get("bankContactName") as string;
     const bankPhone = formData.get("bankPhone") as string;
@@ -236,7 +236,14 @@ export async function POST(req: NextRequest) {
       ? "Finansieringsbevis er verifisert. Lånebeløp er tilstrekkelig."
       : "Finansieringsbevis er verifisert, men lånebeløp er ikke tilstrekkelig.";
 
-    const supabase = createServerClient(); // Instantiate the client
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    console.log("Service Role Key:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "Loaded" : "Missing");
+    console.log("Service Role Key Value:", process.env.SUPABASE_SERVICE_ROLE_KEY);
+
     const referenceCode = uuidv4().slice(0, 8).toUpperCase();
     const { error: insertError } = await supabase.from("bids").insert([
       {
@@ -258,11 +265,14 @@ export async function POST(req: NextRequest) {
     }
     console.log("Inserted into Supabase, referenceCode:", referenceCode);
 
+    // Bid registration and response
     return NextResponse.json({
       success: true,
-      message: message,
-      status: status,
-      referenceCode: referenceCode,
+      message,
+      referenceCode,
+      detectedName,
+      maxFinancing,
+      status,
     });
 
   } catch (err) {

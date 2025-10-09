@@ -87,7 +87,10 @@ export default function UploadPage() {
       if (verifyData.success) {
         setVerificationStatus("success");
         setApiMessage(verifyData.message);
-        // Redirect to success page
+        if (verifyData.warning) {
+          // Optionally display a warning to the user
+          // e.g. setWarning(verifyData.message);
+        }
         router.push("/success");
       } else {
         setVerificationStatus("error");
